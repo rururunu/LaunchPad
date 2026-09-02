@@ -212,6 +212,7 @@ function animate(start: number = 0): void {
 
 function handleKeyDown(e: KeyboardEvent): void {
   if (e.key === 'Enter' && !animating.value) {
+    e.preventDefault();
     vanishAndSubmit();
   } else if (e.key === 'Escape') {
     // 发出ESC键事件
@@ -220,6 +221,7 @@ function handleKeyDown(e: KeyboardEvent): void {
 }
 
 function vanishAndSubmit(): void {
+  if (animating.value) return;
   animating.value = true;
   draw();
   if (vanishingText.value) {

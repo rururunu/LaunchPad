@@ -1,4 +1,5 @@
 import { isChromeStorageAvailable, storage } from '@/utils/storage'
+import { migrateJumpDataEngines } from '@/utils/jumpDataMigration'
 
 const FORMAT = 'launchpad-config'
 const VERSION = 1
@@ -186,7 +187,9 @@ export async function importConfig(config: ConfigFile): Promise<void> {
     ...pick(config.settings.basic, BASIC_KEYS),
     ...pick(config.settings.background, BACKGROUND_KEYS),
   }
-  const engines = config.settings.searchEngines.items
+  const engines = migrateJumpDataEngines(
+    config.settings.searchEngines.items as { jumpUrl: string; injectPrompt?: boolean }[],
+  ).engines
   const availableKeys = new Set(
     engines.flatMap((engine) => isObject(engine) && Array.isArray(engine.key) ? engine.key.filter((key): key is string => typeof key === 'string') : [])
   )

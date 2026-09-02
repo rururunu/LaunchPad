@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LaunchPad",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "LaunchPad — 想去哪就去哪",
   "chrome_url_overrides": {
     "newtab": "index.html"
@@ -20,6 +20,7 @@
     "unlimitedStorage",
     "commands",
     "bookmarks",
+    "tabs",
     "topSites"
   ],
   "optional_permissions": [
@@ -64,6 +65,18 @@
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://*.deepseek.com/*",
+    "https://www.kimi.com/*",
+    "https://kimi.com/*",
+    "https://kimi.moonshot.cn/*",
+    "https://*.kimi.moonshot.cn/*",
+    "https://www.doubao.com/*",
+    "https://doubao.com/*",
+    "https://www.tongyi.com/*",
+    "https://tongyi.com/*",
     "https://picsum.photos/*",
     "https://*.picsum.photos/*",
     "https://wallhaven.cc/*",

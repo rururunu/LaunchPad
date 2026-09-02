@@ -192,6 +192,7 @@ import {
   getEngineHost,
   type SearchEngine,
 } from '@/utils/searchEngines';
+import { migrateJumpDataEngines } from '@/utils/jumpDataMigration';
 
 const { success, error } = useNotification();
 
@@ -277,6 +278,12 @@ const loadEngines = async () => {
       injectPrompt: resolveInjectPrompt(e),
       _id: nextId++,
     }));
+
+    const { engines, changed } = migrateJumpDataEngines(jumpData.value);
+    jumpData.value = engines;
+    if (changed) {
+      await persistEngines(false);
+    }
   } catch {
     jumpData.value = DEFAULT_SEARCH_ENGINES.map((e) => ({
       ...cloneEngine(e),

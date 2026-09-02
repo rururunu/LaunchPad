@@ -1,6 +1,6 @@
 /// <reference types="chrome" />
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import Dialog from './components/ui/dialog/Dialog.vue'
 import NotificationContainer from './components/ui/notification/NotificationContainer.vue'
@@ -23,11 +23,16 @@ const {
   showMask,
   getWallpaperStyle,
   refreshSourceWallpaper,
+  restorePreviousWallpaper,
+  canRestorePreviousWallpaper,
+  isRestoringWallpaper,
 } = useWallpaper()
 const { success, error } = useNotification()
 
 const isLoading = ref(false)
 const isRefreshingWallpaper = ref(false)
+const wallpaperControlsExpanded = ref(false)
+const wallpaperControlsRef = ref<HTMLElement | null>(null)
 const showQuickLinks = ref(true)
 const QUICK_LINKS_VISIBILITY_KEY = 'showQuickLinks'
 const FAVORITE_WALLPAPERS_KEY = 'favoriteWallpapers'
@@ -123,8 +128,16 @@ async function favoriteCurrentWallpaper() {
   }
 }
 
-async function onRefreshWallpaper() {
-  if (isRefreshingWallpaper.value || wallpaperType.value !== 'source') return
+async function onRefreshWallpaper(event?: MouseEvent) {
+  if (isRefreshingWallpaper.value || isRestoringWallpaper.value || wallpaperType.value !== 'source') return
+
+  const pointerType = (event as PointerEvent | undefined)?.pointerType
+  const isTouchLike = pointerType === 'touch' || pointerType === 'pen'
+  if (isTouchLike && !wallpaperControlsExpanded.value) {
+    wallpaperControlsExpanded.value = true
+    return
+  }
+
   isRefreshingWallpaper.value = true
   try {
     await refreshSourceWallpaper()
@@ -134,6 +147,27 @@ async function onRefreshWallpaper() {
     isRefreshingWallpaper.value = false
   }
 }
+
+async function onRestoreWallpaper() {
+  if (!canRestorePreviousWallpaper.value || isRefreshingWallpaper.value) return
+  try {
+    await restorePreviousWallpaper()
+  } catch (e) {
+    console.error('恢复上一张壁纸失败:', e)
+  }
+}
+
+function onWallpaperControlsOutside(event: PointerEvent) {
+  if (!wallpaperControlsExpanded.value) return
+  const root = wallpaperControlsRef.value
+  if (root && !root.contains(event.target as Node)) {
+    wallpaperControlsExpanded.value = false
+  }
+}
+
+watch(wallpaperType, (type) => {
+  if (type !== 'source') wallpaperControlsExpanded.value = false
+})
 
 onMounted(async () => {
   try {
@@ -183,12 +217,15 @@ onMounted(async () => {
         void loadState(true)
       })
     }
+
+    document.addEventListener('pointerdown', onWallpaperControlsOutside, true)
   } catch (e) {
     console.error('App init error:', e)
   }
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onWallpaperControlsOutside, true)
   unsubFavoriteWallpapers?.()
   unsubAppConfig?.()
 })
@@ -283,22 +320,51 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <button
+        <div
           v-if="wallpaperType === 'source'"
-          type="button"
-          id="wallpaper-refresh"
-          class="setup-btn z-[200]"
-          :style="{ color: topIconColor }"
-          :disabled="isRefreshingWallpaper"
-          title="换一张壁纸"
-          @click="onRefreshWallpaper"
+          id="wallpaper-controls"
+          ref="wallpaperControlsRef"
+          class="z-[200]"
         >
-          <Icon
-            icon="fluent:arrow-sync-24-filled"
-            class="text-[22px]"
-            :class="{ 'is-spinning': isRefreshingWallpaper }"
-          />
-        </button>
+          <div
+            class="wallpaper-controls-inner"
+            :class="{ 'is-expanded': wallpaperControlsExpanded }"
+          >
+            <button
+              type="button"
+              class="setup-btn wallpaper-nav-btn wallpaper-prev-btn"
+              :class="{ 'wallpaper-nav-btn--inactive': !canRestorePreviousWallpaper }"
+              :style="{ color: topIconColor }"
+              :disabled="!canRestorePreviousWallpaper || isRefreshingWallpaper || isRestoringWallpaper"
+              :title="canRestorePreviousWallpaper ? '上一张壁纸' : '换一张后可回到上一张'"
+              aria-label="上一张壁纸"
+              @click="onRestoreWallpaper"
+            >
+              <Icon
+                icon="fluent:arrow-left-24-filled"
+                class="text-[22px]"
+                :class="{ 'is-spinning': isRestoringWallpaper }"
+              />
+            </button>
+            <button
+              type="button"
+              id="wallpaper-refresh"
+              class="setup-btn wallpaper-nav-btn wallpaper-refresh-btn"
+              :style="{ color: topIconColor }"
+              :disabled="isRefreshingWallpaper || isRestoringWallpaper"
+              title="换一张壁纸"
+              aria-label="换一张壁纸"
+              :aria-expanded="wallpaperControlsExpanded"
+              @click="onRefreshWallpaper($event)"
+            >
+              <Icon
+                icon="fluent:arrow-sync-24-filled"
+                class="text-[22px]"
+                :class="{ 'is-spinning': isRefreshingWallpaper }"
+              />
+            </button>
+          </div>
+        </div>
 
         <SearchModeView :show-quick-links="showQuickLinks" />
 
@@ -361,10 +427,99 @@ onBeforeUnmount(() => {
   gap: 4px;
 }
 
-#wallpaper-refresh {
+#wallpaper-controls {
   position: fixed;
   right: 18px;
   bottom: 18px;
+  z-index: 200;
+  touch-action: manipulation;
+}
+
+.wallpaper-controls-inner {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  backdrop-filter: blur(0);
+  -webkit-backdrop-filter: blur(0);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    padding 0.2s ease,
+    gap 0.2s ease,
+    backdrop-filter 0.2s ease;
+}
+
+.wallpaper-controls-inner:hover,
+.wallpaper-controls-inner:focus-within,
+.wallpaper-controls-inner.is-expanded {
+  gap: 6px;
+  padding: 4px;
+  background: rgba(15, 15, 18, 0.28);
+  border-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+#wallpaper-controls .wallpaper-nav-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 10px;
+  background: transparent;
+  flex-shrink: 0;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    width 0.2s ease,
+    min-width 0.2s ease,
+    max-width 0.2s ease,
+    margin 0.2s ease,
+    background 0.2s ease;
+}
+
+.wallpaper-controls-inner:hover .wallpaper-nav-btn,
+.wallpaper-controls-inner:focus-within .wallpaper-nav-btn,
+.wallpaper-controls-inner.is-expanded .wallpaper-nav-btn {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#wallpaper-controls .setup-btn.wallpaper-prev-btn {
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border: none;
+}
+
+#wallpaper-controls .wallpaper-controls-inner:hover .setup-btn.wallpaper-prev-btn,
+#wallpaper-controls .wallpaper-controls-inner:focus-within .setup-btn.wallpaper-prev-btn,
+#wallpaper-controls .wallpaper-controls-inner.is-expanded .setup-btn.wallpaper-prev-btn {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#wallpaper-controls .wallpaper-controls-inner:hover .setup-btn.wallpaper-prev-btn.wallpaper-nav-btn--inactive,
+#wallpaper-controls .wallpaper-controls-inner:focus-within .setup-btn.wallpaper-prev-btn.wallpaper-nav-btn--inactive,
+#wallpaper-controls .wallpaper-controls-inner.is-expanded .setup-btn.wallpaper-prev-btn.wallpaper-nav-btn--inactive,
+#wallpaper-controls .wallpaper-controls-inner:hover .setup-btn.wallpaper-prev-btn:disabled,
+#wallpaper-controls .wallpaper-controls-inner:focus-within .setup-btn.wallpaper-prev-btn:disabled,
+#wallpaper-controls .wallpaper-controls-inner.is-expanded .setup-btn.wallpaper-prev-btn:disabled {
+  opacity: 0.72;
+}
+
+#wallpaper-refresh {
+  position: static;
 }
 
 .setup-btn {
@@ -379,6 +534,16 @@ onBeforeUnmount(() => {
   box-shadow: none;
   cursor: pointer;
   transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+#wallpaper-controls .setup-btn.wallpaper-nav-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+}
+
+#wallpaper-controls .setup-btn.wallpaper-prev-btn:disabled {
+  cursor: not-allowed;
 }
 
 .setup-btn--small {
@@ -396,6 +561,11 @@ onBeforeUnmount(() => {
 }
 
 .setup-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.setup-btn:disabled.is-spinning {
   cursor: wait;
   opacity: 0.85;
 }

@@ -4,6 +4,7 @@
  * 按当前屏幕分辨率限制最小尺寸，避免拿到过小/比例不合的壁纸
  * @see https://wallhaven.cc/help/api
  */
+import { buildExcludeKeySet, pickRandomExcluding } from '@/utils/wallpaperPick';
 
 export type WallpaperSourceId =
   | 'picsum'
@@ -34,6 +35,8 @@ export interface ResolveWallpaperOptions {
   wallhavenApiKey?: string;
   /** 是否允许 Wallhaven 返回 NSFW 内容（需要 API Key） */
   wallhavenNsfw?: boolean;
+  /** 最近已展示过的壁纸 URL，随机时尽量避开 */
+  excludeUrls?: string[];
 }
 
 export interface ScreenResolution {
@@ -161,18 +164,30 @@ function isWallhavenSource(id: string): boolean {
 /**
  * 解析 Picsum：按屏幕分辨率请求
  */
-async function resolvePicsum(target: ScreenResolution): Promise<string> {
-  const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const url = `https://picsum.photos/${target.width}/${target.height}?random=${seed}`;
-  const res = await fetch(url, {
-    redirect: 'follow',
-    credentials: 'omit',
-  });
-  if (!res.ok) throw new Error(`Picsum HTTP ${res.status}`);
-  if (res.url && !res.url.includes(`picsum.photos/${target.width}`)) {
-    return res.url;
+async function resolvePicsum(target: ScreenResolution, excludeUrls?: string[]): Promise<string> {
+  const exclude = buildExcludeKeySet(excludeUrls);
+  const maxAttempts = 4;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const seed = `${Date.now()}-${attempt}-${Math.random().toString(36).slice(2, 10)}`;
+    const url = `https://picsum.photos/${target.width}/${target.height}?random=${seed}`;
+    const res = await fetch(url, {
+      redirect: 'follow',
+      credentials: 'omit',
+    });
+    if (!res.ok) throw new Error(`Picsum HTTP ${res.status}`);
+
+    const resolved = res.url && !res.url.includes(`picsum.photos/${target.width}`)
+      ? res.url
+      : url;
+
+    if (!exclude.has(resolved)) {
+      return resolved;
+    }
   }
-  return url;
+
+  const fallbackSeed = `${Date.now()}-fallback-${crypto.randomUUID?.() ?? Math.random()}`;
+  return `https://picsum.photos/${target.width}/${target.height}?random=${fallbackSeed}`;
 }
 
 /**
@@ -199,7 +214,7 @@ function preferBingResolution(path: string, target: ScreenResolution): string {
 /**
  * 解析 Bing 每日壁纸
  */
-async function resolveBing(target: ScreenResolution): Promise<string> {
+async function resolveBing(target: ScreenResolution, excludeUrls?: string[]): Promise<string> {
   const res = await fetch(
     'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN&uhd=1&uhdwidth=3840&uhdheight=2160',
     { credentials: 'omit' }
@@ -210,24 +225,33 @@ async function resolveBing(target: ScreenResolution): Promise<string> {
   if (!Array.isArray(images) || images.length === 0) {
     throw new Error('Bing 未返回壁纸');
   }
-  const pick = images[Math.floor(Math.random() * images.length)];
-  const path = (pick?.urlbase ? `${pick.urlbase}_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp` : pick?.url) as
-    | string
-    | undefined;
-  if (!path) throw new Error('Bing 壁纸地址无效');
 
-  // urlbase 形式更稳；否则处理 url
-  if (pick?.urlbase) {
-    const base = pick.urlbase.startsWith('http')
-      ? pick.urlbase
-      : `https://www.bing.com${pick.urlbase}`;
-    if (target.width >= 2560) {
-      return `${base}_UHD.jpg&rf=LaDigue_UHD.jpg&pid=hp`;
+  const exclude = buildExcludeKeySet(excludeUrls);
+  const toUrl = (pick: { urlbase?: string; url?: string }) => {
+    if (pick?.urlbase) {
+      const base = pick.urlbase.startsWith('http')
+        ? pick.urlbase
+        : `https://www.bing.com${pick.urlbase}`;
+      if (target.width >= 2560) {
+        return `${base}_UHD.jpg&rf=LaDigue_UHD.jpg&pid=hp`;
+      }
+      return `${base}_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp`;
     }
-    return `${base}_1920x1080.jpg&rf=LaDigue_1920x1080.jpg&pid=hp`;
-  }
 
-  return preferBingResolution(path, target);
+    const path = pick?.url as string | undefined;
+    if (!path) throw new Error('Bing 壁纸地址无效');
+    return preferBingResolution(path, target);
+  };
+
+  const candidates = images.map((image) => ({
+    image,
+    url: toUrl(image),
+  }));
+  const filtered = exclude.size
+    ? candidates.filter((item) => !exclude.has(item.url))
+    : candidates;
+  const pool = filtered.length > 0 ? filtered : candidates;
+  return pool[Math.floor(Math.random() * pool.length)].url;
 }
 
 type WallhavenItem = {
@@ -318,7 +342,8 @@ async function resolveWallhaven(
   }
 
   const suitable = filterByResolution(list, target);
-  const item = suitable[Math.floor(Math.random() * suitable.length)];
+  const exclude = buildExcludeKeySet(options.excludeUrls);
+  const item = pickRandomExcluding(suitable, exclude, (entry) => entry.path || '');
   const path = item?.path;
   if (!path) throw new Error('Wallhaven 壁纸地址无效');
   return path;
@@ -336,9 +361,9 @@ export async function resolveWallpaperUrl(
 
   switch (id) {
     case 'picsum':
-      return resolvePicsum(target);
+      return resolvePicsum(target, options.excludeUrls);
     case 'bing':
-      return resolveBing(target);
+      return resolveBing(target, options.excludeUrls);
     case 'wallhaven-random':
       return resolveWallhaven('random', options, target);
     case 'wallhaven-toplist':

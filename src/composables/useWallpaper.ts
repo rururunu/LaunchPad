@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { isChromeStorageAvailable, storage } from '@/utils/storage';
 import { loadImage, clearImageCache } from '@/utils/imageCache';
 import {
@@ -37,6 +37,50 @@ const clockFont = ref<string>('Inter');
 const clockFontSize = ref<number>(96);
 const clockFontWeight = ref<number>(700);
 const useCustomColor = ref<boolean>(false);
+
+const MAX_WALLPAPER_UNDO = 30;
+const MAX_RECENT_WALLPAPERS = 20;
+
+/** 可回到的上一张壁纸（按时间顺序） */
+const wallpaperUndoStack = ref<string[]>([]);
+/** 最近展示过的壁纸，用于随机时去重 */
+const recentWallpaperUrls = ref<string[]>([]);
+const isRestoringWallpaper = ref(false);
+
+const canRestorePreviousWallpaper = computed(
+  () => wallpaperUndoStack.value.length > 0 && !isRestoringWallpaper.value,
+);
+
+function rememberRecentWallpaper(url: string) {
+  if (!url) return;
+  recentWallpaperUrls.value = [
+    url,
+    ...recentWallpaperUrls.value.filter((item) => item !== url),
+  ].slice(0, MAX_RECENT_WALLPAPERS);
+}
+
+function pushWallpaperUndo(url: string) {
+  if (!url) return;
+  wallpaperUndoStack.value = [...wallpaperUndoStack.value, url].slice(-MAX_WALLPAPER_UNDO);
+}
+
+function clearWallpaperNavigationHistory() {
+  wallpaperUndoStack.value = [];
+  recentWallpaperUrls.value = [];
+}
+
+async function applyWallpaperUrl(url: string) {
+  originalWallpaperUrl.value = url;
+  if (wallpaperSourceId.value === 'custom') {
+    sourceUrl.value = url;
+  }
+  try {
+    wallpaperUrl.value = await loadImage(url);
+  } catch (e) {
+    console.error('壁纸加载失败:', e);
+    wallpaperUrl.value = url;
+  }
+}
 
 interface AppConfig {
     wallpaperType: BackgroundType;
@@ -217,6 +261,10 @@ export function useWallpaper() {
                 }
             }
 
+            if (originalWallpaperUrl.value) {
+                rememberRecentWallpaper(originalWallpaperUrl.value);
+            }
+
         } catch (error) {
             console.error('Failed to load wallpaper state:', error);
             wallpaperType.value = 'none';
@@ -293,21 +341,54 @@ export function useWallpaper() {
     };
 
     const refreshSourceWallpaper = async () => {
-        const imageUrl = await resolveWallpaperUrl(wallpaperSourceId.value, {
+        const current = originalWallpaperUrl.value;
+        if (current) {
+            pushWallpaperUndo(current);
+            rememberRecentWallpaper(current);
+        }
+
+        const excludeUrls = [...recentWallpaperUrls.value];
+        let imageUrl = '';
+        const resolveOptions = {
             customUrl: sourceUrl.value,
             wallhavenQuery: wallhavenQuery.value,
             wallhavenApiKey: wallhavenApiKey.value,
             wallhavenNsfw: wallhavenNsfw.value,
-        });
-        originalWallpaperUrl.value = imageUrl;
-        try {
-            wallpaperUrl.value = await loadImage(imageUrl);
-        } catch (e) {
-            console.error('壁纸源加载失败:', e);
-            wallpaperUrl.value = imageUrl;
+            excludeUrls,
+        };
+
+        for (let attempt = 0; attempt < 4; attempt++) {
+            imageUrl = await resolveWallpaperUrl(wallpaperSourceId.value, {
+                ...resolveOptions,
+                excludeUrls: [...excludeUrls],
+            });
+            if (!excludeUrls.includes(imageUrl)) break;
+            excludeUrls.push(imageUrl);
         }
+
+        await applyWallpaperUrl(imageUrl);
+        rememberRecentWallpaper(imageUrl);
         await saveState();
         return imageUrl;
+    };
+
+    const restorePreviousWallpaper = async () => {
+        if (!wallpaperUndoStack.value.length || isRestoringWallpaper.value) return null;
+
+        isRestoringWallpaper.value = true;
+        try {
+            const stack = [...wallpaperUndoStack.value];
+            const previous = stack.pop();
+            if (!previous) return null;
+
+            wallpaperUndoStack.value = stack;
+            await applyWallpaperUrl(previous);
+            rememberRecentWallpaper(previous);
+            await saveState();
+            return previous;
+        } finally {
+            isRestoringWallpaper.value = false;
+        }
     };
 
     const applySourceWallpaper = async (url: string, sourceId?: WallpaperSourceId) => {
@@ -331,6 +412,7 @@ export function useWallpaper() {
     };
 
     const updateWallpaperSource = async (id: WallpaperSourceId) => {
+        clearWallpaperNavigationHistory();
         wallpaperSourceId.value = id;
         if (wallpaperType.value === 'source') {
             await refreshSourceWallpaper();
@@ -510,11 +592,14 @@ export function useWallpaper() {
         clockFontSize,
         clockFontWeight,
         useCustomColor,
+        canRestorePreviousWallpaper,
+        isRestoringWallpaper,
         loadState,
         updateWallpaper,
         updateSourceUrl,
         updateWallpaperSource,
         refreshSourceWallpaper,
+        restorePreviousWallpaper,
         applySourceWallpaper,
         updateWallhavenQuery,
         updateWallhavenApiKey,

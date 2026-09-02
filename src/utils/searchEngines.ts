@@ -13,7 +13,7 @@ export interface SearchEngine {
   /** 仅用于图标（jumpUrl 域名与图标站点不一致时，如 Google site:github.com） */
   iconUrl?: string;
   /**
-   * 对话页填词：打开带 ?q= 的链接后，由扩展把关键词写入页面输入框。
+   * 对话页填词：打开带 ?_lp_q= 的链接后，由扩展把关键词写入页面输入框。
    * 适用于官网不支持搜索深链的 AI / 自定义站点。
    */
   injectPrompt?: boolean;
@@ -22,6 +22,9 @@ export interface SearchEngine {
 }
 
 /** 将模板中的 &<query> 替换为编码后的查询词 */
+/** 扩展专用 URL 参数，避免与各站点自身的 q= 冲突导致页面卡死 */
+export const INJECT_PROMPT_QUERY_KEY = '_lp_q';
+
 export function buildSearchUrl(template: string, query: string): string {
   const encoded = encodeURIComponent(query ?? '');
   if (template.includes('&<query>')) {
@@ -172,49 +175,50 @@ export const PRESET_SEARCH_ENGINES: SearchEngine[] = [
   {
     key: ['gpt', 'chatgpt'],
     label: 'ChatGPT',
-    jumpUrl: 'https://chatgpt.com/?q=&<query>',
+    jumpUrl: `https://chatgpt.com/?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['gm', 'gemini'],
     label: 'Gemini',
-    jumpUrl: 'https://gemini.google.com/app?q=&<query>',
+    jumpUrl: `https://gemini.google.com/app?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['cl', 'claude'],
     label: 'Claude',
-    jumpUrl: 'https://claude.ai/new?q=&<query>',
+    jumpUrl: `https://claude.ai/new?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['kf', 'kimi'],
     label: 'Kimi',
-    jumpUrl: 'https://www.kimi.com/?q=&<query>',
+    // Kimi 不识别搜索参数；使用扩展专用 _lp_q，由页面内填词发送
+    jumpUrl: `https://www.kimi.com/?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['ds', 'deepseek'],
     label: 'DeepSeek',
-    jumpUrl: 'https://chat.deepseek.com/?q=&<query>',
+    jumpUrl: `https://chat.deepseek.com/?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['dbb', 'doubao'],
     label: '豆包',
-    jumpUrl: 'https://www.doubao.com/chat/?q=&<query>',
+    jumpUrl: `https://www.doubao.com/chat/?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },
   {
     key: ['ty', 'tongyi'],
     label: '通义千问',
-    jumpUrl: 'https://www.tongyi.com/qianwen/?q=&<query>',
+    jumpUrl: `https://www.tongyi.com/qianwen/?${INJECT_PROMPT_QUERY_KEY}=&<query>`,
     injectPrompt: true,
     group: 'ai',
   },

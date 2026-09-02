@@ -10,13 +10,8 @@
       <template v-if="showTime">
         <h2
           class="mb-3 text-center tracking-widest select-none cursor-none"
-          :style="{
-            color: clockColor,
-            fontFamily: `'${clockFont}', sans-serif`,
-            fontSize: clockFontSize + 'px',
-            fontWeight: clockFontWeight,
-            textShadow: '0 2px 32px rgba(245,245,250,0.22)',
-          }"
+          :class="clockTextClass"
+          :style="clockTimeStyle"
         >
           {{ time }}
         </h2>
@@ -26,11 +21,8 @@
       </template>
       <div
         class="mb-6 text-center text-sm tracking-[0.2em] sm:mb-12 select-none cursor-none"
-        :style="{
-          color: clockColor,
-          fontFamily: `'${clockFont}', sans-serif`,
-          fontWeight: 400,
-        }"
+        :class="clockTextClass"
+        :style="clockDateStyle"
       >
         <span v-if="showDate">{{ date }}</span>
         <span v-else class="invisible">&nbsp;</span>
@@ -58,8 +50,6 @@ import BlurReveal from '@/components/ui/blur-reveal/BlurReveal.vue'
 import SearchBar from '@/components/ui/search-bar/SearchBar.vue'
 import QuickLinks from '@/components/ui/QuickLinks.vue'
 import { useWallpaper } from '@/composables/useWallpaper'
-import { usePreferredColorScheme } from '@/composables/usePreferredColorScheme'
-
 withDefaults(defineProps<{ showQuickLinks?: boolean }>(), {
   showQuickLinks: true,
 })
@@ -79,12 +69,43 @@ const {
   useCustomColor,
 } = useWallpaper()
 
-const { isDark } = usePreferredColorScheme()
+const clockTextClass = computed(() => {
+  if (useCustomColor.value) return ''
+  if (wallpaperType.value !== 'none') return 'text-white/90'
+  return 'text-slate-700 dark:text-zinc-100'
+})
 
-const clockColor = computed(() => {
-  if (useCustomColor.value) return themeColor.value
-  if (wallpaperType.value !== 'none' || isDark.value) return '#f5f5facc'
-  return '#374151cc'
+const clockTimeStyle = computed(() => {
+  const base = {
+    fontFamily: `'${clockFont.value}', sans-serif`,
+    fontSize: `${clockFontSize.value}px`,
+    fontWeight: clockFontWeight.value,
+  }
+  if (useCustomColor.value) {
+    return {
+      ...base,
+      color: themeColor.value,
+      textShadow: '0 2px 32px rgba(245,245,250,0.22)',
+    }
+  }
+  if (wallpaperType.value !== 'none') {
+    return {
+      ...base,
+      textShadow: '0 2px 32px rgba(245,245,250,0.22)',
+    }
+  }
+  return base
+})
+
+const clockDateStyle = computed(() => {
+  const base = {
+    fontFamily: `'${clockFont.value}', sans-serif`,
+    fontWeight: 400,
+  }
+  if (useCustomColor.value) {
+    return { ...base, color: themeColor.value }
+  }
+  return base
 })
 
 const date = ref('')

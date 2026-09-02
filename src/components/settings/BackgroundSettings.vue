@@ -307,8 +307,22 @@
           <div class="source-actions">
             <button
               type="button"
+              class="settings-btn source-prev-btn"
+              :disabled="!canRestorePreviousWallpaper || isRefreshingSource || isRestoringWallpaper"
+              :title="canRestorePreviousWallpaper ? '上一张壁纸' : '换一张后可回到上一张'"
+              @click="restoreCurrentSource"
+            >
+              <Icon
+                icon="fluent:arrow-left-24-filled"
+                class="text-sm"
+                :class="{ 'is-spinning': isRestoringWallpaper }"
+              />
+              上一张
+            </button>
+            <button
+              type="button"
               class="settings-btn settings-btn--primary source-refresh-btn"
-              :disabled="isRefreshingSource"
+              :disabled="isRefreshingSource || isRestoringWallpaper"
               @click="refreshCurrentSource"
             >
               <Icon
@@ -439,13 +453,16 @@ const {
   updateSourceUrl,
   updateWallpaperSource,
   refreshSourceWallpaper,
+  restorePreviousWallpaper,
   applySourceWallpaper,
   updateWallhavenQuery,
   updateWallhavenApiKey,
   updateWallhavenNsfw,
   updateBackgroundColor,
   loadState,
-  toggleMask
+  toggleMask,
+  canRestorePreviousWallpaper,
+  isRestoringWallpaper,
 } = useWallpaper();
 
 const wallpaperSources = WALLPAPER_SOURCES;
@@ -545,6 +562,16 @@ const refreshCurrentSource = async () => {
     error('获取壁纸失败', e?.toString());
   } finally {
     isRefreshingSource.value = false;
+  }
+};
+
+const restoreCurrentSource = async () => {
+  if (!canRestorePreviousWallpaper.value || isRefreshingSource.value || isRestoringWallpaper.value) return;
+  try {
+    const restored = await restorePreviousWallpaper();
+    if (restored) success('已恢复上一张壁纸', '');
+  } catch (e) {
+    error('恢复壁纸失败', e?.toString());
   }
 };
 

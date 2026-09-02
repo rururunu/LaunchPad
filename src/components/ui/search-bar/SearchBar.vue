@@ -166,6 +166,41 @@
           </div>
         </Transition>
 
+        <!-- 标签页搜索结果（/ 命令） -->
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-[-6px]"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-[-6px]"
+        >
+          <div v-if="showTabResults" class="dropdown-panel tab-results">
+            <div class="dropdown-header">标签页</div>
+            <div class="dropdown-body dropdown-body--scroll ui-scroll">
+              <div
+                v-for="(tab, index) in tabResults.slice(0, 8)"
+                :key="tab.id ?? index"
+                @click="activateTab(tab.id)"
+                class="dropdown-item"
+                :class="{ 'dropdown-item--active': index === selectedTabIndex }"
+              >
+                <span class="tab-index-badge">t{{ tab.index }}</span>
+                <FaviconImg :url="tab.url" :size="16" />
+                <div class="bookmark-info">
+                  <div class="bookmark-title">{{ tab.title }}</div>
+                  <div class="bookmark-url">{{ tab.url }}</div>
+                </div>
+                <kbd v-if="index === selectedTabIndex" class="keyboard-key">Enter</kbd>
+              </div>
+              <div v-if="tabResults.length === 0" class="dropdown-empty">未找到匹配的标签页</div>
+              <div v-if="tabResults.length > 8" class="dropdown-more">
+                另有 {{ tabResults.length - 8 }} 个标签页
+              </div>
+            </div>
+          </div>
+        </Transition>
+
       </div>
     </div>
   </div>
@@ -182,8 +217,18 @@ import FaviconImg from '@/components/ui/FaviconImg.vue'
 import { storage } from '@/utils/storage'
 import { preloadFavicons } from '@/utils/iconCache'
 import { DEFAULT_SEARCH_ENGINES, cloneEngine, buildSearchUrl } from '@/utils/searchEngines'
+import { migrateJumpDataEngines, serializeJumpEngines } from '@/utils/jumpDataMigration'
+import {
+  hasDefaultEngineFilterPrefix,
+  stripDefaultEngineFilterPrefix,
+  parseSlashCommand,
+  isSlashCommand,
+  type SlashCommand,
+} from '@/utils/searchCommands'
 
-type JumpData = { key: string[]; label: string; jumpUrl: string; iconUrl?: string }
+type TabResult = { id?: number; index: number; title: string; url: string; active?: boolean }
+
+type JumpData = { key: string[]; label: string; jumpUrl: string; iconUrl?: string; injectPrompt?: boolean }
 
 const placeholderArray = [
   'Hello!!🖐️',
@@ -209,8 +254,11 @@ const showEnginePicker = ref(false)
 const showEngineSelector = ref(false)
 const showSearchSuggestions = ref(false)
 const showBookmarkResults = ref(false)
+const showTabResults = ref(false)
 const bookmarkResults = ref<any[]>([])
+const tabResults = ref<TabResult[]>([])
 const selectedBookmarkIndex = ref(-1)
+const selectedTabIndex = ref(-1)
 const selectedEngineIndex = ref(0)
 const currentEngineType = ref('bd')
 const currentSearchQuery = ref('')
@@ -277,14 +325,29 @@ watch(ide, (newValue) => {
     showEngineSelector.value = true
     showSearchSuggestions.value = false
     showEnginePicker.value = false
+    showTabResults.value = false
     if (!wasOpen) initEngineSelection()
   } else {
     showEngineSelector.value = false
-    if (value.startsWith('*')) {
+    const slashCmd = parseSlashCommand(value || '')
+    if (slashCmd) {
+      showSearchSuggestions.value = false
+      showBookmarkResults.value = false
+      if (slashCmd.type === 'tab-search') {
+        void searchTabs(slashCmd.query)
+        showTabResults.value = true
+        selectedTabIndex.value = -1
+      } else {
+        showTabResults.value = false
+      }
+    } else if (value.startsWith('*')) {
       const q = value.slice(1).trim()
       if (q) { searchBookmarks(q); showBookmarkResults.value = true }
       else { showBookmarkResults.value = false }
+      showTabResults.value = false
     } else if (value) {
+      showBookmarkResults.value = false
+      showTabResults.value = false
       const parts = value.split(' ')
       const engineKey = parts[0]
       let matchedEngine = false
@@ -296,7 +359,9 @@ watch(ide, (newValue) => {
         showSearchSuggestions.value = true
       } else if (!matchedEngine) {
         currentEngineType.value = defaultKey.value
-        currentSearchQuery.value = value.startsWith('/') ? value.slice(1) : value
+        currentSearchQuery.value = hasDefaultEngineFilterPrefix(value)
+          ? stripDefaultEngineFilterPrefix(value)
+          : value
         showSearchSuggestions.value = true
       } else {
         currentSearchQuery.value = ''
@@ -308,6 +373,7 @@ watch(ide, (newValue) => {
     showSearchSuggestions.value = false
     showEngineSelector.value = false
     showBookmarkResults.value = false
+    showTabResults.value = false
     currentSearchQuery.value = ''
   }
 })
@@ -333,10 +399,13 @@ watch(showEnginePicker, (open) => {
   }
 })
 
-const applyJumpData = (parsed: JumpData[] | null | undefined) => {
-  jumpData.value = (parsed && Array.isArray(parsed) && parsed.length)
+const applyJumpData = (parsed: JumpData[] | null | undefined): boolean => {
+  const source = (parsed && Array.isArray(parsed) && parsed.length)
     ? parsed
     : [...defaultJumpData]
+
+  const { engines, changed } = migrateJumpDataEngines(source)
+  jumpData.value = engines
 
   jumpToData.value = new Map()
   jumpData.value.forEach((d) => {
@@ -351,6 +420,7 @@ const applyJumpData = (parsed: JumpData[] | null | undefined) => {
   }
 
   preloadFavicons(jumpData.value.map((e) => e.iconUrl || e.jumpUrl).filter(Boolean))
+  return changed
 }
 
 const parseJumpData = (raw: unknown): JumpData[] | null => {
@@ -364,7 +434,10 @@ const parseJumpData = (raw: unknown): JumpData[] | null => {
 const loadEngines = async () => {
   try {
     const saved = await storage.get('jumpData')
-    applyJumpData(parseJumpData(saved))
+    const migrated = applyJumpData(parseJumpData(saved))
+    if (migrated && saved) {
+      await storage.set('jumpData', serializeJumpEngines(jumpData.value))
+    }
   } catch {
     applyJumpData(null)
   }
@@ -400,23 +473,41 @@ async function jumpTo(jumpType: string, toData: string) {
     return
   }
   const engine = jumpToData.value.get(jumpType)
+  let url = ''
   if (engine) {
-    window.open(buildSearchUrl(engine.jumpUrl, toData), '_blank', 'noopener,noreferrer')
+    url = buildSearchUrl(engine.jumpUrl, toData)
   } else {
     const def = jumpToData.value.get(defaultKey.value) || jumpData.value[0]
     if (def) {
-      window.open(
-        buildSearchUrl(def.jumpUrl, jumpType + (toData ? ' ' + toData : '')),
-        '_blank',
-        'noopener,noreferrer'
-      )
+      url = buildSearchUrl(def.jumpUrl, jumpType + (toData ? ' ' + toData : ''))
     }
   }
+  if (!url || !openOnce(url)) return
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+let lastOpenUrl = ''
+let lastOpenAt = 0
+
+function openOnce(url: string): boolean {
+  const now = Date.now()
+  if (url === lastOpenUrl && now - lastOpenAt < 600) return false
+  lastOpenUrl = url
+  lastOpenAt = now
+  return true
 }
 
 function submit(content: string) {
   if (content.startsWith('*')) return
-  if (content.startsWith('/')) { jumpTo(defaultKey.value, content.slice(1)); return }
+  const slashCmd = parseSlashCommand(content)
+  if (slashCmd) {
+    void executeSlashCommand(slashCmd)
+    return
+  }
+  if (hasDefaultEngineFilterPrefix(content)) {
+    jumpTo(defaultKey.value, stripDefaultEngineFilterPrefix(content))
+    return
+  }
   if (content.includes(' ')) { const [a, b] = segmentationContent(' ', content); jumpTo(a, b) }
   else jumpTo(defaultKey.value, content)
   showSearchSuggestions.value = false
@@ -440,6 +531,7 @@ function handleEscapeKey() {
   showSearchSuggestions.value = false
   showEngineSelector.value = false
   showBookmarkResults.value = false
+  showTabResults.value = false
 }
 
 const currentEngine = computed(() =>
@@ -449,7 +541,7 @@ const currentEngine = computed(() =>
 /** 根据输入前缀显示对应引擎图标（如输入 ds 显示 DeepSeek） */
 const displayEngine = computed(() => {
   const raw = ide.value.trim()
-  if (!raw || raw.startsWith('*') || isCdCommand(raw) || raw.startsWith('/')) {
+  if (!raw || raw.startsWith('*') || isCdCommand(raw) || hasDefaultEngineFilterPrefix(raw) || isSlashCommand(raw)) {
     return currentEngine.value
   }
   const token = raw.split(/\s+/)[0]
@@ -497,9 +589,9 @@ function updateDropdownMaxH() {
 }
 
 watch(
-  [showEnginePicker, showEngineSelector, showBookmarkResults, showSearchSuggestions],
-  ([a, b, c, d]) => {
-    if (a || b || c || d) {
+  [showEnginePicker, showEngineSelector, showBookmarkResults, showTabResults, showSearchSuggestions],
+  ([a, b, c, d, e]) => {
+    if (a || b || c || d || e) {
       nextTick(() => {
         updateDropdownMaxH()
         requestAnimationFrame(updateDropdownMaxH)
@@ -507,6 +599,79 @@ watch(
     }
   }
 )
+
+async function searchTabs(query: string) {
+  try {
+    const w = window as any
+    if (w.chrome?.tabs) {
+      const tabs = await w.chrome.tabs.query({ currentWindow: true })
+      const lower = query.toLowerCase()
+      tabResults.value = tabs
+        .map((t: any, i: number) => ({
+          id: t.id,
+          index: i + 1,
+          title: t.title || '(无标题)',
+          url: t.url || '',
+          active: !!t.active,
+        }))
+        .filter(
+          (t: TabResult) =>
+            !query ||
+            t.title.toLowerCase().includes(lower) ||
+            t.url.toLowerCase().includes(lower)
+        )
+    } else {
+      tabResults.value = []
+    }
+  } catch {
+    tabResults.value = []
+  }
+}
+
+async function activateTab(tabId?: number) {
+  const w = window as any
+  if (!tabId || !w.chrome?.tabs) return
+  try {
+    const tab = await w.chrome.tabs.get(tabId)
+    await w.chrome.tabs.update(tabId, { active: true })
+    if (tab.windowId) await w.chrome.windows.update(tab.windowId, { focused: true })
+    showTabResults.value = false
+    ide.value = ''
+  } catch (e) {
+    console.error('activateTab error:', e)
+  }
+}
+
+async function activateTabByIndex(index: number) {
+  const w = window as any
+  if (!w.chrome?.tabs) return
+  const tabs = await w.chrome.tabs.query({ currentWindow: true })
+  const tab = tabs[index - 1]
+  if (tab?.id) await activateTab(tab.id)
+}
+
+async function createNewTab() {
+  const w = window as any
+  if (!w.chrome?.tabs) return
+  await w.chrome.tabs.create({})
+  ide.value = ''
+}
+
+async function executeSlashCommand(cmd: SlashCommand) {
+  if (cmd.type === 'new') {
+    await createNewTab()
+    return
+  }
+  if (cmd.type === 'tab-index') {
+    await activateTabByIndex(cmd.index)
+    return
+  }
+  if (cmd.type === 'tab-search') {
+    if (selectedTabIndex.value >= 0 && tabResults.value[selectedTabIndex.value]?.id) {
+      await activateTab(tabResults.value[selectedTabIndex.value].id)
+    }
+  }
+}
 
 async function searchBookmarks(query: string) {
   try {
@@ -543,6 +708,24 @@ const handleKeyDown = (e: KeyboardEvent) => {
       e.stopPropagation()
       const eng = list[selectedEngineIndex.value]
       if (eng) void confirmEngine(eng)
+    }
+    return
+  }
+
+  if (!showBookmarkResults.value && !showTabResults.value) return
+
+  if (showTabResults.value) {
+    const max = Math.min(tabResults.value.length - 1, 7)
+    if (max < 0) return
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      selectedTabIndex.value = selectedTabIndex.value <= 0 ? max : selectedTabIndex.value - 1
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      selectedTabIndex.value = selectedTabIndex.value >= max ? 0 : selectedTabIndex.value + 1
+    } else if (e.key === 'Enter' && selectedTabIndex.value >= 0) {
+      e.preventDefault()
+      void activateTab(tabResults.value[selectedTabIndex.value]?.id)
     }
     return
   }
@@ -643,184 +826,20 @@ onBeforeUnmount(() => {
   bottom: calc(100% + 8px);
 }
 
-/* 通用下拉面板：整块高度受视口剩余空间约束 */
-.dropdown-panel {
-  display: flex;
-  flex-direction: column;
-  max-height: var(--gs-dropdown-max-h, 40vh);
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-  backdrop-filter: blur(20px);
-}
-
-.dropdown-header {
+.tab-index-badge {
   flex-shrink: 0;
-  padding: 8px 16px;
+  min-width: 28px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(0, 0, 0, 0.02);
-}
-
-.dropdown-header--row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.dropdown-hints {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.dropdown-hints kbd,
-.keyboard-key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 5px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.92));
-  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
-  color: #475569;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
-.dropdown-body {
-  padding: 6px;
-}
-
-.dropdown-body--scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.12s;
-  gap: 12px;
-}
-
-.dropdown-item:hover,
-.dropdown-item--active,
-.dropdown-item--selected {
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.dropdown-item--selected {
-  background: rgba(59, 130, 246, 0.14);
-}
-
-.dropdown-item-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1f2937;
-}
-
-.dropdown-item-key {
-  min-width: 124px;
-  height: 30px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0 10px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.92);
-  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
-  color: #64748b;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0;
-  white-space: nowrap;
-}
-
-.bookmark-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.bookmark-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1f2937;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.bookmark-url {
-  font-size: 11px;
-  color: #9ca3af;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: 1px;
-}
-
-.keyboard-key {
-  flex-shrink: 0;
-  color: #2563eb;
-  border-color: rgba(37, 99, 235, 0.28);
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.88));
-}
-
-.dropdown-item > .keyboard-key {
-  min-width: 58px;
-  height: 30px;
-  box-sizing: border-box;
-  border-radius: 8px;
-  line-height: 30px;
-}
-
-.dropdown-empty {
   text-align: center;
-  color: #9ca3af;
-  font-size: 13px;
-  padding: 16px 0;
+  color: rgb(113 113 122);
+  background: rgb(244 244 245);
 }
 
-.dropdown-more {
-  text-align: center;
-  color: #9ca3af;
-  font-size: 11px;
-  padding: 6px 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  margin-top: 4px;
+:global(.dark) .tab-index-badge {
+  color: rgb(161 161 170);
+  background: rgb(39 39 42);
 }
 </style>

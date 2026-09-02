@@ -1,6 +1,8 @@
 <template>
   <div class="tutorial settings-page">
-    <p class="lead">在搜索框用前缀命令，或按 <kbd class="settings-kbd">Alt</kbd>+<kbd class="settings-kbd">S</kbd> 唤起全局搜索。</p>
+    <p class="lead">
+      新标签页搜索框与 <kbd class="settings-kbd">Alt</kbd>+<kbd class="settings-kbd">S</kbd> 全局浮层共用同一套前缀命令。
+    </p>
 
     <section class="block">
       <h3 class="block-title">命令</h3>
@@ -63,6 +65,10 @@ const commands = [
   { key: 'gg', arg: '关键词', desc: 'Google 搜索', ex: 'gg docs' },
   { key: 'cd', arg: '', desc: '切换默认引擎', ex: 'cd → ↑↓ → Enter' },
   { key: '*', arg: '关键词', desc: '搜索收藏夹', ex: '*GitHub' },
+  { key: '!', arg: '关键词', desc: '强制使用默认引擎', ex: '!github' },
+  { key: '/new', arg: '', desc: '打开新标签页', ex: '/new' },
+  { key: '/tN', arg: '', desc: '切换到第 N 个标签页', ex: '/t1' },
+  { key: '/t', arg: '关键词', desc: '搜索已打开标签页', ex: '/t deep' },
 ]
 
 const shortcuts = [
@@ -73,7 +79,9 @@ const shortcuts = [
 ]
 
 const tips = [
-  '直接输入内容时，使用当前默认引擎搜索。',
+  '直接输入内容时，使用当前默认搜索引擎。',
+  '输入 ! 可强制走默认引擎，例如 !github 不会把 github 当成引擎缩写。',
+  '/new、/t1、/t 关键词 可在新标签页与 Alt+S 浮层中使用；/t 列表支持 ↑↓ 与 Enter。',
   '引擎可在「搜索引擎」设置中添加或自定义。',
   '壁纸、时钟、颜色在对应设置页调整。',
 ]

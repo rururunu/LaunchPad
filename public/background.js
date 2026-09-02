@@ -218,6 +218,63 @@ if (isExtensionEnvironment) {
             return true;
         }
 
+        if (request.action === 'QUERY_TABS') {
+            chrome.tabs.query({ currentWindow: true })
+                .then((tabs) => {
+                    const q = String(request.query || '').trim().toLowerCase();
+                    const results = (tabs || [])
+                        .map((tab, i) => ({
+                            id: tab.id,
+                            index: i + 1,
+                            title: tab.title || '(无标题)',
+                            url: tab.url || '',
+                            active: !!tab.active,
+                            favIconUrl: tab.favIconUrl || '',
+                        }))
+                        .filter((t) => {
+                            if (!q) return true;
+                            return (
+                                t.title.toLowerCase().includes(q) ||
+                                t.url.toLowerCase().includes(q)
+                            );
+                        });
+                    sendResponse({ success: true, results });
+                })
+                .catch((err) => sendResponse({ success: false, error: err?.message || String(err) }));
+            return true;
+        }
+
+        if (request.action === 'ACTIVATE_TAB') {
+            const run = async () => {
+                if (request.tabId) {
+                    const tab = await chrome.tabs.get(request.tabId);
+                    await chrome.tabs.update(request.tabId, { active: true });
+                    if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+                    return;
+                }
+                if (request.index) {
+                    const tabs = await chrome.tabs.query({ currentWindow: true });
+                    const tab = tabs[request.index - 1];
+                    if (!tab?.id) throw new Error('tab not found');
+                    await chrome.tabs.update(tab.id, { active: true });
+                    if (tab.windowId) await chrome.windows.update(tab.windowId, { focused: true });
+                    return;
+                }
+                throw new Error('tabId or index required');
+            };
+            run()
+                .then(() => sendResponse({ success: true }))
+                .catch((err) => sendResponse({ success: false, error: err?.message || String(err) }));
+            return true;
+        }
+
+        if (request.action === 'CREATE_TAB') {
+            chrome.tabs.create({ url: request.url || undefined })
+                .then(() => sendResponse({ success: true }))
+                .catch((err) => sendResponse({ success: false, error: err?.message || String(err) }));
+            return true;
+        }
+
         // ChatGPT：在页面主世界填词并点击发送（隔离世界点 disabled 按钮无效）
         if (request.action === 'CHATGPT_FILL_SEND') {
             const tabId = sender.tab?.id;
@@ -343,7 +400,8 @@ if (isExtensionEnvironment) {
                 },
             })
                 .then((results) => {
-                    sendResponse({ success: true, result: results?.[0]?.result });
+                    const result = results?.[0]?.result;
+                    sendResponse({ success: result?.ok === true, result });
                 })
                 .catch((err) => {
                     sendResponse({ success: false, error: err?.message || String(err) });
@@ -464,7 +522,325 @@ if (isExtensionEnvironment) {
                 },
             })
                 .then((results) => {
-                    sendResponse({ success: true, result: results?.[0]?.result });
+                    const result = results?.[0]?.result;
+                    sendResponse({ success: result?.ok === true, result });
+                })
+                .catch((err) => {
+                    sendResponse({ success: false, error: err?.message || String(err) });
+                });
+            return true;
+        }
+
+        // DeepSeek：主世界填词并发送（React 需原生 value setter + 等发送按钮启用）
+        if (request.action === 'DEEPSEEK_FILL_SEND') {
+            const tabId = sender.tab?.id;
+            if (!tabId) {
+                sendResponse({ success: false, error: 'no tab' });
+                return true;
+            }
+            chrome.scripting.executeScript({
+                target: { tabId },
+                world: 'MAIN',
+                args: [String(request.prompt || ''), request.autoSend !== false],
+                func: async (text, shouldSend) => {
+                    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+                    const findEditor = () =>
+                        document.querySelector('textarea#chat-input') ||
+                        document.querySelector('textarea[data-testid="chat-input"]') ||
+                        document.querySelector('textarea[placeholder*="Message DeepSeek"]') ||
+                        document.querySelector('textarea[placeholder*="DeepSeek"]') ||
+                        document.querySelector('textarea');
+
+                    const isEnabled = (btn) => {
+                        if (!btn) return false;
+                        if (btn.getAttribute('aria-disabled') === 'true') return false;
+                        if (btn.hasAttribute('disabled') || btn.disabled) return false;
+                        const rect = btn.getBoundingClientRect();
+                        return rect.width > 0 && rect.height > 0;
+                    };
+
+                    const findSendFromContainer = (editor) => {
+                        if (!editor) return null;
+                        let node = editor.parentElement;
+                        for (let depth = 0; depth < 8 && node; depth++) {
+                            const buttons = [...node.querySelectorAll('button, div[role="button"]')];
+                            const candidates = buttons.filter((btn) => {
+                                if (!isEnabled(btn)) return false;
+                                const label = `${btn.getAttribute('aria-label') || ''} ${btn.textContent || ''}`.toLowerCase();
+                                if (/(attach|upload|file|附件|上传|语音|voice|mic)/i.test(label)) return false;
+                                if (/(stop|停止|cancel|取消)/i.test(label)) return false;
+                                return true;
+                            });
+                            if (candidates.length) return candidates[candidates.length - 1];
+
+                            const iconBtn = node.querySelector('div.ds-icon-button[role="button"]');
+                            if (iconBtn && isEnabled(iconBtn)) return iconBtn;
+
+                            node = node.parentElement;
+                        }
+
+                        return (
+                            document.querySelector('button[aria-label="Send message"]') ||
+                            document.querySelector('button[data-testid="send-button"]') ||
+                            document.querySelector('div.ds-icon-button[role="button"]:not([aria-disabled="true"])')
+                        );
+                    };
+
+                    let editor = null;
+                    for (let i = 0; i < 80; i++) {
+                        editor = findEditor();
+                        if (editor) break;
+                        await sleep(200);
+                    }
+                    if (!editor) return { ok: false, reason: 'no-editor' };
+
+                    editor.focus();
+                    await sleep(50);
+
+                    const desc = Object.getOwnPropertyDescriptor(
+                        HTMLTextAreaElement.prototype,
+                        'value'
+                    );
+                    if (desc?.set) desc.set.call(editor, text);
+                    else editor.value = text;
+
+                    editor.dispatchEvent(
+                        new InputEvent('input', {
+                            bubbles: true,
+                            cancelable: true,
+                            composed: true,
+                            inputType: 'insertText',
+                            data: text,
+                        })
+                    );
+                    editor.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    if (!shouldSend) return { ok: true, sent: false };
+
+                    await sleep(300);
+
+                    for (let i = 0; i < 80; i++) {
+                        const btn = findSendFromContainer(editor);
+                        if (isEnabled(btn)) {
+                            btn.focus();
+                            btn.click();
+                            await sleep(300);
+                            const stopped = document.querySelector(
+                                'div[role="button"][aria-disabled="true"] svg, button[aria-label*="Stop"], button[aria-label*="停止"]'
+                            );
+                            return { ok: true, sent: true, confirmed: !!stopped };
+                        }
+                        await sleep(150);
+                    }
+
+                    // 兜底：Enter
+                    try {
+                        editor.focus();
+                        editor.dispatchEvent(
+                            new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                which: 13,
+                                bubbles: true,
+                                cancelable: true,
+                            })
+                        );
+                    } catch (_) {}
+
+                    return { ok: true, sent: true, fallback: 'enter' };
+                },
+            })
+                .then((results) => {
+                    const result = results?.[0]?.result;
+                    sendResponse({ success: result?.ok === true, result });
+                })
+                .catch((err) => {
+                    sendResponse({ success: false, error: err?.message || String(err) });
+                });
+            return true;
+        }
+
+        // Kimi：主世界填词并发送（contenteditable + send-button-container）
+        if (request.action === 'KIMI_FILL_SEND') {
+            const tabId = sender.tab?.id;
+            if (!tabId) {
+                sendResponse({ success: false, error: 'no tab' });
+                return true;
+            }
+            chrome.scripting.executeScript({
+                target: { tabId },
+                world: 'MAIN',
+                args: [String(request.prompt || ''), request.autoSend !== false],
+                func: async (text, shouldSend) => {
+                    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+                    const isVisible = (el) => {
+                        if (!el || !(el instanceof Element)) return false;
+                        const style = window.getComputedStyle(el);
+                        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+                            return false;
+                        }
+                        const rect = el.getBoundingClientRect();
+                        return rect.width > 8 && rect.height > 8;
+                    };
+
+                    const findEditor = () => {
+                        const sels = [
+                            'textarea[placeholder*="尽管问"]',
+                            'textarea[placeholder*="Agent"]',
+                            'div.chat-input-editor[contenteditable="true"]',
+                            'div[contenteditable="true"][role="textbox"]',
+                            'textarea[data-testid="chat-input"]',
+                        ];
+                        for (const sel of sels) {
+                            const nodes = document.querySelectorAll(sel);
+                            for (const el of nodes) {
+                                if (isVisible(el)) return el;
+                            }
+                        }
+                        return null;
+                    };
+
+                    const findSend = (editor) => {
+                        const scopes = [
+                            editor?.closest('form'),
+                            editor?.closest('[class*="composer"]'),
+                            editor?.closest('[class*="input"]'),
+                            editor?.parentElement,
+                            document.body,
+                        ].filter(Boolean);
+                        const sels = [
+                            'div.send-button-container:not(.disabled)',
+                            'div.send-button-container',
+                            'div[class*="send-button"]:not([class*="disabled"])',
+                            'button[aria-label*="发送"]',
+                            'button[aria-label*="Send"]',
+                        ];
+                        for (const scope of scopes) {
+                            for (const sel of sels) {
+                                const btn = scope.querySelector(sel);
+                                if (btn && isVisible(btn)) return btn;
+                            }
+                        }
+                        return null;
+                    };
+
+                    const isEnabled = (btn) => {
+                        if (!btn) return false;
+                        if (btn.disabled || btn.hasAttribute('disabled')) return false;
+                        if (btn.getAttribute('aria-disabled') === 'true') return false;
+                        const cls = `${btn.className || ''}`.toLowerCase();
+                        if (/(disabled|inactive)/i.test(cls)) return false;
+                        const rect = btn.getBoundingClientRect();
+                        if (rect.width <= 0 || rect.height <= 0) return false;
+                        const style = window.getComputedStyle(btn);
+                        if (style.pointerEvents === 'none' || parseFloat(style.opacity) === 0) return false;
+                        return true;
+                    };
+
+                    const fillEditor = async (editor) => {
+                        editor.focus();
+                        await sleep(60);
+
+                        if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
+                            const proto =
+                                editor instanceof HTMLTextAreaElement
+                                    ? HTMLTextAreaElement.prototype
+                                    : HTMLInputElement.prototype;
+                            const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+                            if (desc?.set) desc.set.call(editor, text);
+                            else editor.value = text;
+                            editor.dispatchEvent(
+                                new InputEvent('input', {
+                                    bubbles: true,
+                                    cancelable: true,
+                                    composed: true,
+                                    inputType: 'insertText',
+                                    data: text,
+                                })
+                            );
+                            editor.dispatchEvent(new Event('change', { bubbles: true }));
+                            return true;
+                        }
+
+                        try {
+                            const sel = window.getSelection();
+                            const range = document.createRange();
+                            range.selectNodeContents(editor);
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        } catch (_) {}
+
+                        let inserted = false;
+                        try {
+                            inserted = document.execCommand('insertText', false, text);
+                        } catch (_) {
+                            inserted = false;
+                        }
+
+                        if (!inserted) {
+                            editor.textContent = text;
+                            editor.dispatchEvent(
+                                new InputEvent('input', {
+                                    bubbles: true,
+                                    cancelable: true,
+                                    inputType: 'insertText',
+                                    data: text,
+                                })
+                            );
+                        }
+
+                        editor.dispatchEvent(new Event('input', { bubbles: true }));
+                        editor.dispatchEvent(new Event('change', { bubbles: true }));
+                        return true;
+                    };
+
+                    let editor = null;
+                    for (let i = 0; i < 40; i++) {
+                        editor = findEditor();
+                        if (editor) break;
+                        await sleep(150);
+                    }
+                    if (!editor) return { ok: false, reason: 'no-editor' };
+
+                    await fillEditor(editor);
+
+                    if (!shouldSend) return { ok: true, sent: false };
+
+                    await sleep(300);
+
+                    for (let i = 0; i < 30; i++) {
+                        const btn = findSend(editor);
+                        if (isEnabled(btn)) {
+                            btn.focus();
+                            btn.click();
+                            return { ok: true, sent: true };
+                        }
+                        await sleep(120);
+                    }
+
+                    try {
+                        editor.focus();
+                        editor.dispatchEvent(
+                            new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                which: 13,
+                                bubbles: true,
+                                cancelable: true,
+                            })
+                        );
+                    } catch (_) {}
+
+                    return { ok: true, sent: true, fallback: 'enter' };
+                },
+            })
+                .then((results) => {
+                    const result = results?.[0]?.result;
+                    sendResponse({ success: result?.ok === true, result });
                 })
                 .catch((err) => {
                     sendResponse({ success: false, error: err?.message || String(err) });

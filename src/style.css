@@ -6,3 +6,6 @@ body,
 }
 
 @import "tailwindcss";
+
+/* 跟随系统暗色模式（与 App.vue 中 prefers-color-scheme 保持一致） */
+@custom-variant dark (@media (prefers-color-scheme: dark));

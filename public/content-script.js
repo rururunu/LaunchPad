@@ -223,8 +223,40 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const DEFAULT_ENGINE_FILTER_PREFIX = '!';
+
+function stripDefaultEngineFilterPrefix(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed.startsWith(DEFAULT_ENGINE_FILTER_PREFIX)) return value;
+  return trimmed.slice(DEFAULT_ENGINE_FILTER_PREFIX.length).trimStart();
+}
+
+function hasDefaultEngineFilterPrefix(value) {
+  return String(value || '').trim().startsWith(DEFAULT_ENGINE_FILTER_PREFIX);
+}
+
+function parseSlashCommand(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed.startsWith('/')) return null;
+  if (trimmed === '/new') return { type: 'new' };
+  const tabIndexMatch = trimmed.match(/^\/t(\d+)$/i);
+  if (tabIndexMatch) {
+    const index = parseInt(tabIndexMatch[1], 10);
+    if (index >= 1) return { type: 'tab-index', index };
+  }
+  const tabSearchMatch = trimmed.match(/^\/t(?:\s+(.+))?$/i);
+  if (tabSearchMatch) return { type: 'tab-search', query: (tabSearchMatch[1] || '').trim() };
+  return null;
+}
+
+function isSlashCommand(value) {
+  return parseSlashCommand(value) !== null;
+}
+
 function parseInputQuery(value) {
-  if (value.startsWith('/')) return { engineKey: defaultKey, query: value.slice(1) };
+  if (hasDefaultEngineFilterPrefix(value)) {
+    return { engineKey: defaultKey, query: stripDefaultEngineFilterPrefix(value) };
+  }
   // 长 key 优先，避免短 key 误匹配
   const keys = [...jumpToData.keys()].sort((a, b) => b.length - a.length);
   for (const key of keys) {
@@ -616,6 +648,25 @@ img {
   flex-shrink: 0;
 }
 
+.gs-tab-badge {
+  flex-shrink: 0;
+  min-width: 28px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: #71717a;
+  background: #f4f4f5;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gs-tab-badge {
+    color: #a1a1aa;
+    background: #27272a;
+  }
+}
+
 .gs-engine-name {
   flex: 1;
   min-width: 0;
@@ -802,9 +853,11 @@ img {
 `;
 
 // ─── 状态 ────────────────────────────────────────────────
-let dropdownMode           = null; // 'engines' | 'bookmarks' | 'suggestions' | null
+let dropdownMode           = null; // 'engines' | 'bookmarks' | 'tabs' | 'slash-hint' | 'suggestions' | null
 let selectedBookmarkIndex  = -1;
 let currentBookmarkResults = [];
+let selectedTabIndex       = -1;
+let currentTabResults      = [];
 let selectedEngineIndex    = 0;
 
 let currentSuggestions      = [];
@@ -1060,6 +1113,104 @@ function renderEngines(container, filter) {
   });
 }
 
+function renderSlashHint(container, cmd) {
+  const head = document.createElement('div');
+  head.className = 'gs-section-label gs-section-label--row';
+  const title = document.createElement('span');
+  if (cmd.type === 'new') title.textContent = '打开新标签页';
+  else if (cmd.type === 'tab-index') title.textContent = `切换到第 ${cmd.index} 个标签页`;
+  else title.textContent = '标签页命令';
+  const hints = document.createElement('span');
+  hints.className = 'gs-kbd-hints';
+  hints.innerHTML = '<kbd>Enter</kbd> 确认';
+  head.appendChild(title);
+  head.appendChild(hints);
+  container.appendChild(head);
+}
+
+function renderTabs(container, results, selectedIndex) {
+  const head = document.createElement('div');
+  head.className = 'gs-section-label gs-section-label--row';
+  const title = document.createElement('span');
+  title.textContent = '标签页';
+  const hints = document.createElement('span');
+  hints.className = 'gs-kbd-hints';
+  hints.innerHTML = '<kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 切换';
+  head.appendChild(title);
+  head.appendChild(hints);
+  container.appendChild(head);
+
+  if (results.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'gs-empty';
+    empty.textContent = '未找到匹配的标签页';
+    container.appendChild(empty);
+    return;
+  }
+
+  results.slice(0, 8).forEach((tab, i) => {
+    const item = document.createElement('div');
+    item.className = 'gs-bm-item gs-tab-item' + (i === selectedIndex ? ' selected' : '');
+
+    const badge = document.createElement('span');
+    badge.className = 'gs-tab-badge';
+    badge.textContent = `t${tab.index}`;
+
+    const img = document.createElement('img');
+    img.alt = '';
+    applyFavicon(img, tab.url);
+
+    const info = document.createElement('div');
+    info.className = 'gs-bm-info';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'gs-bm-title';
+    titleEl.textContent = tab.title;
+
+    const url = document.createElement('div');
+    url.className = 'gs-bm-url';
+    url.textContent = tab.url;
+
+    info.appendChild(titleEl);
+    info.appendChild(url);
+    item.appendChild(badge);
+    item.appendChild(img);
+    item.appendChild(info);
+
+    if (i === selectedIndex) {
+      const enter = document.createElement('span');
+      enter.className = 'gs-bm-enter';
+      enter.textContent = 'Enter';
+      item.appendChild(enter);
+    }
+
+    item.addEventListener('mouseenter', () => {
+      selectedTabIndex = i;
+      gs$$('.gs-tab-item').forEach((el, idx) => {
+        el.classList.toggle('selected', idx === i);
+        const exist = el.querySelector('.gs-bm-enter');
+        if (idx === i && !exist) {
+          const enter = document.createElement('span');
+          enter.className = 'gs-bm-enter';
+          enter.textContent = 'Enter';
+          el.appendChild(enter);
+        } else if (idx !== i) {
+          exist?.remove();
+        }
+      });
+    });
+
+    item.addEventListener('click', async () => {
+      if (tab.id && await activateTab(tab.id)) {
+        hideDropdown();
+        if (animateHide) animateHide();
+      }
+    });
+
+    container.appendChild(item);
+  });
+}
+
 function renderBookmarks(container, results, selectedIndex) {
   const head = document.createElement('div');
   head.className = 'gs-section-label gs-section-label--row';
@@ -1295,6 +1446,8 @@ function showDropdown(mode, results, selectedIndex) {
     renderEngines(dropdown, filter);
   }
   if (mode === 'bookmarks')   renderBookmarks(dropdown, results ?? currentBookmarkResults, selectedIndex ?? selectedBookmarkIndex);
+  if (mode === 'tabs')        renderTabs(dropdown, results ?? currentTabResults, selectedIndex ?? selectedTabIndex);
+  if (mode === 'slash-hint')  renderSlashHint(dropdown, results);
   if (mode === 'suggestions') renderSuggestions(dropdown);
 
   // 渲染内容后再量高度，保证标题/条目都算进去
@@ -1325,7 +1478,7 @@ function findEngineByToken(token) {
 
 function resolveActiveEngineKey(raw) {
   const value = (raw || '').trim();
-  if (!value || value.startsWith('*') || value === 'cd' || value.startsWith('cd ') || value.startsWith('/')) {
+  if (!value || value.startsWith('*') || value === 'cd' || value.startsWith('cd ') || hasDefaultEngineFilterPrefix(value) || isSlashCommand(value)) {
     return defaultKey;
   }
   const token = value.split(/\s+/)[0];
@@ -1421,6 +1574,71 @@ async function searchBookmarks(query) {
   }
 }
 
+async function searchTabs(query) {
+  try {
+    if (isExtensionEnvironment && chrome.runtime?.sendMessage) {
+      const resp = await chrome.runtime.sendMessage({
+        action: 'QUERY_TABS',
+        query,
+      });
+      if (resp?.success && Array.isArray(resp.results)) return resp.results;
+    }
+  } catch (e) {
+    console.error('标签页搜索失败:', e);
+  }
+  return [];
+}
+
+async function activateTab(tabId) {
+  if (!tabId || !isExtensionEnvironment || !chrome.runtime?.sendMessage) return false;
+  try {
+    const resp = await chrome.runtime.sendMessage({ action: 'ACTIVATE_TAB', tabId });
+    return !!resp?.success;
+  } catch (e) {
+    console.error('切换标签页失败:', e);
+    return false;
+  }
+}
+
+async function activateTabByIndex(index) {
+  if (!index || !isExtensionEnvironment || !chrome.runtime?.sendMessage) return false;
+  try {
+    const resp = await chrome.runtime.sendMessage({ action: 'ACTIVATE_TAB', index });
+    return !!resp?.success;
+  } catch (e) {
+    console.error('切换标签页失败:', e);
+    return false;
+  }
+}
+
+async function createNewTab() {
+  if (!isExtensionEnvironment || !chrome.runtime?.sendMessage) return false;
+  try {
+    const resp = await chrome.runtime.sendMessage({ action: 'CREATE_TAB' });
+    return !!resp?.success;
+  } catch (e) {
+    console.error('新建标签页失败:', e);
+    return false;
+  }
+}
+
+async function executeSlashCommand(cmd) {
+  if (!cmd) return false;
+  if (cmd.type === 'new') return createNewTab();
+  if (cmd.type === 'tab-index') return activateTabByIndex(cmd.index);
+  if (cmd.type === 'tab-search') {
+    if (!currentTabResults.length) {
+      currentTabResults = await searchTabs(cmd.query);
+    }
+    const tab =
+      selectedTabIndex >= 0
+        ? currentTabResults[selectedTabIndex]
+        : currentTabResults[0];
+    if (tab?.id) return activateTab(tab.id);
+  }
+  return false;
+}
+
 const handleKeyNavigation = (e) => {
   if (dropdownMode === 'engines') {
     const input = gs$('#gs-input');
@@ -1454,22 +1672,41 @@ const handleKeyNavigation = (e) => {
     return;
   }
 
-  if (dropdownMode !== 'bookmarks') return;
-  const max = Math.min(currentBookmarkResults.length - 1, 4);
+  if (dropdownMode !== 'bookmarks' && dropdownMode !== 'tabs') return;
+  const isTabs = dropdownMode === 'tabs';
+  const results = isTabs ? currentTabResults : currentBookmarkResults;
+  if (!results.length && e.key !== 'Enter') return;
+  const max = Math.min(results.length - 1, isTabs ? 7 : 4);
+  const getSelected = () => (isTabs ? selectedTabIndex : selectedBookmarkIndex);
+  const setSelected = (v) => {
+    if (isTabs) selectedTabIndex = v;
+    else selectedBookmarkIndex = v;
+  };
 
   if (e.key === 'ArrowUp') {
     e.preventDefault();
-    selectedBookmarkIndex = selectedBookmarkIndex <= 0 ? max : selectedBookmarkIndex - 1;
-    showDropdown('bookmarks');
-    scrollToSelected();
+    setSelected(getSelected() <= 0 ? max : getSelected() - 1);
+    showDropdown(isTabs ? 'tabs' : 'bookmarks');
+    scrollToSelected(isTabs ? '.gs-tab-item' : '.gs-bm-item');
   } else if (e.key === 'ArrowDown') {
     e.preventDefault();
-    selectedBookmarkIndex = selectedBookmarkIndex >= max ? 0 : selectedBookmarkIndex + 1;
-    showDropdown('bookmarks');
-    scrollToSelected();
+    setSelected(getSelected() >= max ? 0 : getSelected() + 1);
+    showDropdown(isTabs ? 'tabs' : 'bookmarks');
+    scrollToSelected(isTabs ? '.gs-tab-item' : '.gs-bm-item');
   } else if (e.key === 'Enter') {
     e.preventDefault();
-    if (selectedBookmarkIndex >= 0 && currentBookmarkResults[selectedBookmarkIndex]?.url) {
+    if (isTabs) {
+      const idx = selectedTabIndex >= 0 ? selectedTabIndex : 0;
+      const tab = currentTabResults[idx];
+      if (tab?.id) {
+        activateTab(tab.id).then((ok) => {
+          if (ok) {
+            hideDropdown();
+            if (animateHide) animateHide();
+          }
+        });
+      }
+    } else if (selectedBookmarkIndex >= 0 && currentBookmarkResults[selectedBookmarkIndex]?.url) {
       window.open(currentBookmarkResults[selectedBookmarkIndex].url, '_blank', 'noopener,noreferrer');
       hideDropdown();
       if (animateHide) animateHide();
@@ -1477,9 +1714,9 @@ const handleKeyNavigation = (e) => {
   }
 };
 
-const scrollToSelected = () => {
+const scrollToSelected = (selector = '.gs-bm-item') => {
   const dropdown = gs$('#gs-dropdown');
-  const selected = dropdown?.querySelector('.gs-bm-item.selected');
+  const selected = dropdown?.querySelector(`${selector}.selected`);
   if (!dropdown || !selected) return;
   const dr = dropdown.getBoundingClientRect();
   const sr = selected.getBoundingClientRect();
@@ -1549,7 +1786,7 @@ const createSearchContainer = () => {
   const input = document.createElement('input');
   input.id = 'gs-input';
   input.type = 'text';
-  input.placeholder = '搜索，或输入 bd / gg / cd / * …';
+  input.placeholder = '搜索，或输入 bd / gg / cd / * / ! / /new / /t …';
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.setAttribute('autocapitalize', 'off');
@@ -1592,6 +1829,8 @@ const createSearchContainer = () => {
 
     selectedBookmarkIndex   = -1;
     currentBookmarkResults  = [];
+    selectedTabIndex        = -1;
+    currentTabResults       = [];
     selectedSuggestionIndex = -1;
     syncEngineBtnFromInput();
 
@@ -1608,6 +1847,19 @@ const createSearchContainer = () => {
       const q = value.slice(1).trim();
       if (q) { currentBookmarkResults = await searchBookmarks(q); showDropdown('bookmarks'); }
       else hideDropdown();
+      return;
+    }
+
+    const slashCmd = parseSlashCommand(value);
+    if (slashCmd) {
+      if (suggestTimer) clearTimeout(suggestTimer);
+      if (slashCmd.type === 'tab-search') {
+        currentTabResults = await searchTabs(slashCmd.query);
+        selectedTabIndex = -1;
+        showDropdown('tabs');
+      } else {
+        showDropdown('slash-hint', slashCmd);
+      }
       return;
     }
 
@@ -1647,9 +1899,9 @@ const createSearchContainer = () => {
       return;
     }
 
-    if (input.value.trim().startsWith('*')) {
+    if (input.value.trim().startsWith('*') || dropdownMode === 'tabs') {
       handleKeyNavigation(e);
-      if (e.key === 'Enter' && !currentBookmarkResults.length) e.preventDefault();
+      if (e.key === 'Enter' && !currentBookmarkResults.length && dropdownMode !== 'tabs') e.preventDefault();
       return;
     }
 
@@ -1689,14 +1941,28 @@ const createSearchContainer = () => {
     }
 
     if (e.key === 'Enter' && input.value.trim()) {
+      e.preventDefault();
       const content = input.value.trim();
       const parts = content.split(' ');
       const isCd  = parts[0] === 'cd' && parts.length <= 2;
+      const slashCmd = parseSlashCommand(content);
+
+      if (slashCmd) {
+        executeSlashCommand(slashCmd).then((ok) => {
+          if (ok) {
+            input.value = '';
+            hideDropdown();
+            selectedTabIndex = -1;
+            _hide();
+          }
+        });
+        return;
+      }
 
       if (dropdownMode === 'suggestions' && selectedSuggestionIndex >= 0 && currentSuggestions[selectedSuggestionIndex]) {
         jumpTo(suggestionEngineKey || defaultKey, currentSuggestions[selectedSuggestionIndex]);
       } else {
-        if (content.startsWith('/')) jumpTo(defaultKey, content.slice(1));
+        if (hasDefaultEngineFilterPrefix(content)) jumpTo(defaultKey, stripDefaultEngineFilterPrefix(content));
         else if (content.includes(' ')) { const [a, b] = segmentationContent(' ', content); jumpTo(a, b); }
         else jumpTo(defaultKey, content);
       }
@@ -1773,6 +2039,29 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 
+// ─── jumpData 迁移（与 src/utils/jumpDataMigration.ts 保持同步）────────
+const INJECT_PROMPT_QUERY_KEY = '_lp_q';
+
+function migrateInjectJumpUrl(jumpUrl, injectPrompt) {
+  if (!jumpUrl || injectPrompt !== true) return jumpUrl;
+  if (!/[?&](q|p)=&<query>/i.test(jumpUrl)) return jumpUrl;
+  if (jumpUrl.includes(`${INJECT_PROMPT_QUERY_KEY}=&<query>`)) return jumpUrl;
+  return jumpUrl.replace(/([?&])(q|p)=&<query>/gi, `$1${INJECT_PROMPT_QUERY_KEY}=&<query>`);
+}
+
+function migrateJumpDataEngines(engines) {
+  let changed = false;
+  const migrated = engines.map((engine) => {
+    const jumpUrl = migrateInjectJumpUrl(engine.jumpUrl, engine.injectPrompt === true);
+    if (jumpUrl !== engine.jumpUrl) {
+      changed = true;
+      return { ...engine, jumpUrl };
+    }
+    return engine;
+  });
+  return { engines: migrated, changed };
+}
+
 // ─── jumpData 同步 ───────────────────────────────────────
 function applyJumpData(raw) {
   let data = raw;
@@ -1782,7 +2071,8 @@ function applyJumpData(raw) {
   if (!Array.isArray(data) || data.length === 0) {
     data = defaultJumpData;
   }
-  jumpData = data;
+  const { engines, changed } = migrateJumpDataEngines(data);
+  jumpData = engines;
   jumpToData = new Map();
   jumpData.forEach((d) => (d.key || []).forEach((k) => { if (k) jumpToData.set(k, d); }));
   if (!jumpToData.has(defaultKey) && jumpData[0]?.key?.[0]) {
@@ -1794,6 +2084,9 @@ function applyJumpData(raw) {
   if (dropdownMode === 'engines') {
     const dd = gs$('#gs-dropdown');
     if (dd) showDropdown('engines');
+  }
+  if (changed) {
+    storage.set('jumpData', JSON.stringify(jumpData)).catch(() => {});
   }
 }
 
@@ -1831,6 +2124,17 @@ if (isExtensionEnvironment) {
 }
 
 // ─── 跳转 ────────────────────────────────────────────────
+let lastOpenUrl = '';
+let lastOpenAt = 0;
+
+function openOnce(url) {
+  const now = Date.now();
+  if (url === lastOpenUrl && now - lastOpenAt < 600) return false;
+  lastOpenUrl = url;
+  lastOpenAt = now;
+  return true;
+}
+
 async function jumpTo(jumpType, toData) {
   if (!jumpType) jumpType = defaultKey;
   if (jumpType === 'cd') {
@@ -1842,18 +2146,17 @@ async function jumpTo(jumpType, toData) {
     return;
   }
   const engine = jumpToData.get(jumpType);
+  let url = '';
   if (engine) {
-    window.open(buildSearchUrl(engine.jumpUrl, toData), '_blank', 'noopener,noreferrer');
+    url = buildSearchUrl(engine.jumpUrl, toData);
   } else {
     const def = jumpToData.get(defaultKey);
     if (def) {
-      window.open(
-        buildSearchUrl(def.jumpUrl, jumpType + (toData ? ' ' + toData : '')),
-        '_blank',
-        'noopener,noreferrer'
-      );
+      url = buildSearchUrl(def.jumpUrl, jumpType + (toData ? ' ' + toData : ''));
     }
   }
+  if (!url || !openOnce(url)) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 // ─── 初始化 ──────────────────────────────────────────────

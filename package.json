@@ -1,14 +1,15 @@
 {
   "name": "init-tab",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
     "check:mojibake": "node scripts/check-mojibake.mjs",
     "lint": "pnpm typecheck && pnpm check:mojibake",
-    "test": "pnpm typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
     "check": "pnpm lint && pnpm test && pnpm build"
@@ -36,6 +37,7 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.7.2",
     "vite": "^6.2.0",
+    "vitest": "^3.0.9",
     "vue-tsc": "^2.2.4"
   },
   "packageManager": "pnpm@10.8.0+sha512.0e82714d1b5b43c74610193cb20734897c1d00de89d0e18420aebc5977fa13d780a9cb05734624e81ebd81cc876cd464794850641c48b9544326b5622ca29971"

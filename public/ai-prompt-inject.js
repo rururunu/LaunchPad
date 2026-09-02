@@ -8,77 +8,111 @@
   window.__gsAiPromptInject = true;
 
   const params = new URLSearchParams(location.search);
-  const prompt =
-    (params.get('q') || params.get('p') || params.get('prompt') || '').trim();
+  const PROMPT_PARAM_KEYS = ['_lp_q', 'q', 'p', 'prompt'];
+  const prompt = PROMPT_PARAM_KEYS.map((k) => params.get(k)).find((v) => v?.trim())?.trim() || '';
   if (!prompt) return;
 
   const autoSend = params.get('autosend') !== '0';
   const host = location.hostname.replace(/^www\./, '');
 
+  // Kimi 站点处理 ?q= 可能卡死，尽早从地址栏移除（词已由扩展读取）
+  if (prompt && (host === 'kimi.com' || host === 'kimi.moonshot.cn')) {
+    try {
+      const url = new URL(location.href);
+      if (url.searchParams.has('q')) {
+        url.searchParams.delete('q');
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   /** 内置选择器（已知站点更准）；其它站点走 GENERIC */
   const BUILTIN = {
     'kimi.com': {
       inputs: [
+        'textarea[placeholder*="尽管问"]',
+        'textarea[placeholder*="Agent"]',
         'div.chat-input-editor[contenteditable="true"]',
         'div[contenteditable="true"][role="textbox"]',
-        'textarea',
+        'textarea[data-testid="chat-input"]',
       ],
       sends: [
+        'div.send-button-container:not(.disabled)',
         'div.send-button-container',
-        'div[class*="send-button"]',
-        'div[class*="sendButton"]',
+        'div[class*="send-button"]:not([class*="disabled"])',
         'button[aria-label*="发送"]',
         'button[aria-label*="Send"]',
       ],
-      delayMs: 280,
-      maxAttempts: 40,
+      delayMs: 300,
+      maxAttempts: 30,
+      sendMode: 'kimi',
+      skipObserverFallback: true,
     },
     'kimi.moonshot.cn': {
       inputs: [
+        'textarea[placeholder*="尽管问"]',
+        'textarea[placeholder*="Agent"]',
         'div.chat-input-editor[contenteditable="true"]',
         'div[contenteditable="true"][role="textbox"]',
-        'textarea',
+        'textarea[data-testid="chat-input"]',
       ],
       sends: [
+        'div.send-button-container:not(.disabled)',
         'div.send-button-container',
-        'div[class*="send-button"]',
+        'div[class*="send-button"]:not([class*="disabled"])',
         'button[aria-label*="发送"]',
+        'button[aria-label*="Send"]',
       ],
-      delayMs: 280,
-      maxAttempts: 40,
+      delayMs: 300,
+      maxAttempts: 30,
+      sendMode: 'kimi',
+      skipObserverFallback: true,
     },
     'chat.deepseek.com': {
       inputs: [
         'textarea#chat-input',
         'textarea[data-testid="chat-input"]',
+        'textarea[placeholder*="Message DeepSeek"]',
         'textarea[placeholder*="发送"]',
         'textarea[placeholder*="DeepSeek"]',
         'div[contenteditable="true"][role="textbox"]',
         'textarea',
       ],
       sends: [
+        'button[aria-label="Send message"]',
+        'button[data-testid="send-button"]',
+        'div.ds-icon-button[role="button"]',
+        'div[role="button"][aria-label*="Send"]',
+        'div[role="button"][aria-label*="发送"]',
         'button[data-testid*="send"]',
         'button[aria-label*="发送"]',
         'button[aria-label*="Send"]',
         'button[class*="send"]',
       ],
-      delayMs: 120,
-      maxAttempts: 40,
+      delayMs: 350,
+      maxAttempts: 80,
+      sendMode: 'deepseek',
     },
     'deepseek.com': {
       inputs: [
         'textarea#chat-input',
         'textarea[data-testid="chat-input"]',
+        'textarea[placeholder*="Message DeepSeek"]',
         'div[contenteditable="true"][role="textbox"]',
         'textarea',
       ],
       sends: [
+        'button[aria-label="Send message"]',
+        'div.ds-icon-button[role="button"]',
         'button[data-testid*="send"]',
         'button[aria-label*="发送"]',
         'button[aria-label*="Send"]',
       ],
-      delayMs: 120,
-      maxAttempts: 40,
+      delayMs: 350,
+      maxAttempts: 80,
+      sendMode: 'deepseek',
     },
     // ChatGPT：优先 textarea（若有），再 ProseMirror
     'chatgpt.com': {
@@ -374,12 +408,14 @@
   const clearUrlParams = () => {
     try {
       const url = new URL(location.href);
-      ['q', 'p', 'prompt', 'autosend'].forEach((k) => url.searchParams.delete(k));
+      ['_lp_q', 'q', 'p', 'prompt', 'autosend'].forEach((k) => url.searchParams.delete(k));
       history.replaceState(null, '', url.pathname + url.search + url.hash);
     } catch {
       // ignore
     }
   };
+
+  const fillSendOk = (resp) => !!(resp?.success && resp?.result?.ok);
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -468,6 +504,8 @@
   };
 
   const run = (platform) => {
+    if (platform.skipObserverFallback) return;
+
     let done = false;
     let attempts = 0;
     const maxAttempts = platform.maxAttempts || 40;
@@ -495,7 +533,13 @@
 
       if (autoSend) {
         // ChatGPT 需要多等一会让发送按钮从 disabled 恢复
-        await sleep(platform.sendMode === 'chatgpt' ? Math.max(platform.delayMs || 600, 600) : (platform.delayMs || 200));
+        await sleep(
+          platform.sendMode === 'chatgpt'
+            ? Math.max(platform.delayMs || 600, 600)
+            : platform.sendMode === 'deepseek' || platform.sendMode === 'kimi'
+              ? Math.max(platform.delayMs || 350, 350)
+              : (platform.delayMs || 200)
+        );
         await trySend(platform, input);
       }
       return true;
@@ -538,7 +582,7 @@
           prompt,
           autoSend,
         });
-        if (resp?.success) {
+        if (fillSendOk(resp)) {
           clearUrlParams();
           return;
         }
@@ -555,13 +599,49 @@
           prompt,
           autoSend,
         });
-        if (resp?.success) {
+        if (fillSendOk(resp)) {
           clearUrlParams();
           return;
         }
       } catch {
         // fallback
       }
+    }
+
+    // DeepSeek：主世界填词（React textarea + div[role=button] 发送）
+    if (platform.sendMode === 'deepseek' && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          action: 'DEEPSEEK_FILL_SEND',
+          prompt,
+          autoSend,
+        });
+        if (fillSendOk(resp)) {
+          clearUrlParams();
+          return;
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    // Kimi：主世界填词；失败也不走 MutationObserver，避免页面卡死
+    if (platform.sendMode === 'kimi' && typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      try {
+        const resp = await chrome.runtime.sendMessage({
+          action: 'KIMI_FILL_SEND',
+          prompt,
+          autoSend,
+        });
+        if (fillSendOk(resp)) {
+          clearUrlParams();
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      clearUrlParams();
+      return;
     }
 
     run(platform);
