@@ -1,131 +1,124 @@
-# LaunchPad ✨
+<div align="center">
+  <img src="public/logo.png" width="112" alt="LaunchPad 图标" />
+  <h1>LaunchPad</h1>
+  <p>想去哪，就去哪。</p>
+  <p>一个简洁、可定制的浏览器新标签页，也是一套随时可用的搜索启动器。</p>
 
-打开新标签页，也可以很有意思。
+  <a href="https://microsoftedge.microsoft.com/addons/detail/launchpad/mooiphlmpfndbnicaeaemmdpnolkhamh"> Edge安装</a> ·
+  <a href="https://github.com/rururunu/init-tab/releases/latest">下载最新版</a> ·
+  <a href="#使用说明">使用说明</a> ·
+  <a href="#本地开发">本地开发</a>
+</div>
 
-当前版本：**0.0.3**
+## 功能亮点
 
-<img width="700" alt="preview" src="https://github.com/user-attachments/assets/164532ca-d247-4b70-8362-a48a6caba961" />
+- **全局搜索**：在任意网页按下 `Alt + S`，无需切换标签页即可唤起搜索框。
+- **多引擎指令**：使用 `gg`、`bd` 等前缀直达指定搜索引擎，也可以添加自己的搜索网站和指令。
+- **AI 直达**：内置 ChatGPT、Gemini、Claude、Kimi、DeepSeek、豆包、通义千问等预设，支持将问题自动填入对话框。
+- **收藏夹搜索**：输入 `*` 加关键词，直接搜索浏览器收藏夹。
+- **标签页命令**：输入 `/new` 打开新标签，`/t1` 切换到指定标签，`/t 关键词` 搜索已打开标签页。
+- **强制默认引擎**：输入 `!` 加关键词，避免首词被识别为引擎指令。
+- **搜索建议**：输入时显示联想词，支持键盘选择和补全。
+- **快捷访问**：在搜索框下方放置常用网站，支持自定义、分组、拖动排序，以及从收藏夹或推荐列表快速添加。
+- **个性化新标签页**：自由设置时钟、日期、字体、字号、颜色和明暗模式下的显示效果。
+- **多种背景**：支持纯色、本地图片、自定义图片链接、Picsum、必应每日和 Wallhaven；在线壁纸可以刷新、收藏和再次应用。
+- **配置迁移**：将基础设置、背景、搜索引擎和快捷访问导出为 JSON，并在其他设备导入恢复。
 
-<img width="700" alt="preview" src="https://github.com/user-attachments/assets/41d43a18-f0ec-494e-8417-b7a478b210d7" />
+## 安装
 
----
+LaunchPad 目前以 Chromium 扩展提供，可用于 Chrome、Edge 等兼容浏览器。
 
-## 🔍 随手搜，不打断
+如果您使用的试 Edge 可以直接前往 [microsoftedge](https://microsoftedge.microsoft.com/addons/detail/launchpad/mooiphlmpfndbnicaeaemmdpnolkhamh) 直接安装此插件
 
-任何页面按下 `Alt + S`，搜索框就弹出来了——不用切标签，不用动鼠标。新标签页主搜索框与 `Alt + S` 浮层**共用同一套命令**。
+1. 前往 [Releases](https://github.com/rururunu/init-tab/releases/latest) 下载最新的 `LaunchPad.zip`。
+2. 解压下载的文件。
+3. 打开浏览器的扩展管理页：Chrome 为 `chrome://extensions`，Edge 为 `edge://extensions`。
+4. 开启右上角的「开发者模式」。
+5. 点击「加载已解压的扩展程序」，选择刚刚解压的文件夹。
+6. 打开一个新标签页，开始使用 LaunchPad。
 
-<img width="700" alt="search box" src="https://github.com/user-attachments/assets/6b8563c6-2a18-4839-91eb-404679dad201" />
+> 如果 `Alt + S` 与其他软件冲突，可在 `chrome://extensions/shortcuts` 或 `edge://extensions/shortcuts` 中修改快捷键。
 
-<img width="700" alt="search suggestion" src="https://github.com/user-attachments/assets/8f316856-0730-4858-9e36-87a10aa3018e" />
+## 使用说明
 
----
+直接输入关键词并按下 `Enter`，会使用当前默认引擎搜索。输入引擎指令后再输入关键词，则会临时使用对应引擎。
 
-## 🎮 玩法
+| 输入 | 作用 | 示例 |
+| --- | --- | --- |
+| `关键词` | 使用默认引擎搜索 | `Vue 组件通信` |
+| `bd 关键词` | 使用百度搜索 | `bd 北京天气` |
+| `gg 关键词` | 使用 Google 搜索 | `gg Vue documentation` |
+| `cd` | 从列表中切换默认搜索引擎 | `cd` |
+| `*关键词` | 搜索浏览器收藏夹 | `*GitHub` |
+| `!关键词` | 强制使用默认引擎搜索，避免首词被当成引擎指令 | `!github` |
+| `/new` | 打开新标签页 | `/new` |
+| `/t1` | 切换到当前窗口第 1 个标签页（`/t2`、`/t3` 同理） | `/t1` |
+| `/t` | 列出当前窗口全部标签页 | `/t` |
+| `/t 关键词` | 按标题或 URL 筛选已打开标签页 | `/t deep` |
 
-### 快捷键
+### 随时唤起全局搜索
 
-| 操作 | 效果 |
-|------|------|
-| `Alt + S` | 任意网页唤起全局搜索浮层 |
-| `↑` `↓` | 在下拉列表中移动 |
-| `Enter` | 确认选中项 / 执行命令 |
-| `→` | 用搜索建议填充输入框（不提交） |
-| `Esc` | 先关闭下拉，再关闭浮层 |
+浏览网页时按下 `Alt + S`，LaunchPad 会在当前页面上方显示搜索框。输入关键词、选择搜索建议并回车即可跳转，全程无需离开当前标签页。
 
-### 搜索与前缀命令
+<img width="900" alt="在任意网页按 Alt + S 唤起 LaunchPad 全局搜索" src="docs/Alt_s_select.webp" />
 
-| 输入 | 效果 |
-|------|------|
-| `bd 关键词` | 用百度搜（`gg`、`bi` 等同理） |
-| `cd` | 展开引擎列表，`↑↓` 选择后 `Enter` 切换默认引擎 |
-| `cd gg` | 过滤引擎列表（输入 `cd` 后接缩写） |
-| `* 关键词` | 在收藏夹里搜书签 |
-| `! 关键词` | 强制用默认引擎搜，避免首词被当成引擎缩写 |
-| `/new` | 打开新标签页，`Enter` 确认 |
-| `/t1` | 切换到当前窗口第 1 个标签页（`/t2`、`/t3` …） |
-| `/t` | 列出当前窗口全部标签页 |
-| `/t 关键词` | 列出标题或 URL 包含关键词的标签页，`↑↓` 选择后 `Enter` 切换 |
+### 快速切换默认引擎
 
-直接输入内容（无前缀）时，使用当前默认搜索引擎。
+输入 `cd` 打开搜索引擎列表，使用方向键选择并按下 `Enter`，之后直接输入的内容都会交给新的默认引擎。
 
-- **壁纸随心换** — 塞一张自己喜欢的图，每次打开都是好心情
-- **搜索引擎一键切** — 输 `cd` 加引擎缩写，想用哪个用哪个
-- **书签不再难找** — `*` 开头，直接搜收藏栏
-- **标签页快切** — `/t` 系列命令，不用鼠标点标签栏
-- **输入有提示** — 搜什么，边打边猜
-- **AI 对话填词** — 对 ChatGPT、Kimi、DeepSeek 等站点，扩展用 `_lp_q` 传词并在页面内自动填词发送
+<img width="900" alt="使用 cd 指令切换 LaunchPad 默认搜索引擎" src="docs/cd.webp" />
 
----
+### 直达 AI 对话
 
-## 🤖 AI 填词说明
+添加 AI 搜索预设后，输入对应指令和问题即可打开目标 AI。对于支持填词的站点，LaunchPad 会将问题写入对话框并尝试自动发送。
 
-部分 AI 站点不支持 `?q=` 深链，甚至可能被错误参数卡死（例如 Kimi）。LaunchPad 对**已开启「填词」**的引擎使用扩展专用参数：
+<img width="900" alt="通过 LaunchPad 将问题发送到 AI 对话网站" src="docs/AI_goto.webp" />
 
-```
-https://www.kimi.com/?_lp_q=你的问题
-```
+### 搜索浏览器收藏夹
 
-`ai-prompt-inject.js` 会读取 `_lp_q`（并兼容旧的 `q` / `p` / `prompt`），在目标页主世界填词后清除地址栏参数。
+输入 `*` 后继续输入关键词，即可筛选浏览器收藏夹；选中结果后直接打开，不必再翻找收藏夹目录。
 
----
+<img width="900" alt="使用星号指令搜索并打开浏览器收藏夹" src="docs/star_goto.webp" />
 
-## 🛠 开发
+常用键盘操作：
 
-### 环境要求
+| 按键 | 作用 |
+| --- | --- |
+| `Alt + S` | 在当前网页唤起全局搜索 |
+| `↑` / `↓` | 在建议或引擎列表中移动 |
+| `Enter` | 确认选中项或开始搜索 |
+| `→` | 用当前建议补全输入框 |
+| `Esc` | 关闭下拉列表或搜索浮层 |
 
-- Node.js 18+
-- pnpm 8+
+搜索引擎、AI 站点、快捷访问和壁纸都可以在右上角的「设置」中调整。首次使用默认提供百度、Google、DuckDuckGo 和 Bing，更多预设可在「搜索引擎」中一键添加。
 
-### 常用命令
+## 权限说明
+
+LaunchPad 需要读取收藏夹来提供收藏夹搜索和快捷访问推荐，需要在网页中运行内容脚本来显示全局搜索框，并使用本地扩展存储保存配置、图标和壁纸缓存。启用在线壁纸或搜索建议时，浏览器会向所选的第三方服务发起请求。
+
+所有个性化配置默认保存在浏览器本地；需要迁移时，可通过「设置 → 导入导出」手动生成或导入 JSON 文件。
+
+## 本地开发
+
+需要 Node.js 20+ 和 pnpm 10+。
 
 ```bash
-pnpm install          # 安装依赖
-pnpm dev              # 新标签页本地开发（Vite）
-pnpm build            # 构建 dist/（加载扩展前需执行）
-pnpm typecheck        # TypeScript 检查
-pnpm test             # Vitest 单元测试
-pnpm check            # lint + test + build
+pnpm install
+pnpm dev
 ```
 
-### 加载扩展
+构建可加载到浏览器的扩展：
 
-1. `pnpm build`
-2. 打开 `chrome://extensions`
-3. 开启「开发者模式」→「加载已解压的扩展程序」→ 选择 `dist` 目录
-4. 修改 `public/` 下 content script / background 后需重新 build 并**重新加载扩展**
-5. 新增 `tabs` 等权限后，Chrome 可能提示重新授权，点「重新加载」即可
+```bash
+pnpm build
+```
 
-### 目录速览
+构建产物位于 `dist/`。开发前也可以运行完整检查：
 
-| 路径 | 说明 |
-|------|------|
-| `src/` | 新标签页 Vue 应用 |
-| `public/manifest.json` | 扩展清单（版本号与 `package.json` 对齐） |
-| `public/content-script.js` | Alt+S 全局搜索浮层 |
-| `public/background.js` | Service Worker、标签页 API、主世界填词 |
-| `public/ai-prompt-inject.js` | AI 对话页填词 |
-| `src/utils/searchEngines.ts` | 搜索引擎预设与 URL 构建 |
-| `src/utils/searchCommands.ts` | `!` 默认引擎前缀、`/` 标签页命令解析 |
-| `src/utils/jumpDataMigration.ts` | jumpData 老数据迁移 |
+```bash
+pnpm check
+```
 
----
+## 反馈
 
-## 📦 版本与迁移
-
-### 0.0.3
-
-- AI 填词 URL 占位符由 `?q=` / `?p=` 迁移为 `?_lp_q=`（仅 `injectPrompt: true` 的引擎）
-- 加载 `jumpData` 时自动迁移并写回 storage（新标签页、设置页、Alt+S 内容脚本）
-- 补充 Claude / 豆包 / 通义等 `host_permissions`
-- 新增 `!` 前缀：强制使用默认引擎搜索
-- 新增 `/` 标签页命令：`/new`、`/tN`、`/t 关键词`（新标签页与 Alt+S 均可用）
-- 新增 `tabs` 权限，用于查询与切换标签页
-- 引入 Vitest，覆盖迁移、命令解析与 URL 构建逻辑
-
-旧配置无需手动修改；若曾自定义 Kimi 等 AI 引擎地址，打开设置或新标签页一次即可完成迁移。
-
----
-
-## 📄 License
-
-MIT
+遇到问题或有功能建议，欢迎提交 [Issue](https://github.com/rururunu/init-tab/issues)。

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LaunchPad",
-  "version": "0.0.3",
+  "version": "0.1.1",
   "description": "LaunchPad — 想去哪就去哪",
   "chrome_url_overrides": {
     "newtab": "index.html"
