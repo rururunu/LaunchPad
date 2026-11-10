@@ -1,0 +1,57 @@
+<div class="app">
+  <form class="panel" id="form">
+    <h2>倒数日</h2>
+    <label>名称<input id="title" maxlength="30" placeholder="例如：生日、考试、假期" required autocomplete="off"></label>
+    <label>目标日期<input id="date" type="date" required></label>
+    <div class="preview" id="preview"></div>
+    <div class="row"><button type="submit" class="primary">保存</button><span id="ok"></span></div>
+  </form>
+</div>
+<style>
+  .app { --bg:#fff; --bg2:#f5f5f7; --text:#1d1d1f; --sub:#86868b; --line:rgba(0,0,0,.1); --accent:#007aff;
+    height:100vh; padding:24px; display:flex; align-items:flex-start; justify-content:center; overflow:auto;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --bg2:#2c2c2e; --text:#f5f5f7; --sub:#98989d; --line:rgba(255,255,255,.12); --accent:#0a84ff; color-scheme:dark; } }
+  .panel { width:100%; max-width:420px; display:flex; flex-direction:column; gap:16px; }
+  h2 { margin:0; font-size:20px; }
+  label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--sub); font-weight:500; }
+  input { height:38px; border:1px solid var(--line); border-radius:10px; padding:0 12px; font-size:14px; background:var(--bg2); color:var(--text); outline:none; font-family:inherit; }
+  input:focus { border-color:var(--accent); }
+  .preview { padding:16px; border-radius:14px; background:var(--bg2); font-size:14px; }
+  .preview b { font-size:28px; color:var(--accent); }
+  .row { display:flex; align-items:center; gap:12px; }
+  .primary { height:36px; padding:0 20px; border:0; border-radius:10px; background:var(--accent); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+  #ok { color:var(--sub); font-size:13px; }
+</style>
+<script>
+  function $(id) { return document.getElementById(id); }
+  function days(ds) {
+    var p = ds.split("-"), t = new Date(+p[0], p[1] - 1, +p[2]), n = new Date();
+    return Math.round((t - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 86400000);
+  }
+  function preview() {
+    var t = $("title").value.trim() || "目标日", ds = $("date").value;
+    if (!ds) { $("preview").textContent = "选择日期后显示剩余天数"; return; }
+    var d = days(ds);
+    $("preview").innerHTML = "";
+    var name = document.createElement("span"); name.textContent = t + (d >= 0 ? " 还有 " : " 已过去 ");
+    var n = document.createElement("b"); n.textContent = d === 0 ? "今天" : Math.abs(d);
+    var u = document.createElement("span"); u.textContent = d === 0 ? "" : " 天";
+    $("preview").appendChild(name); $("preview").appendChild(n); $("preview").appendChild(u);
+  }
+  function fill(v) {
+    var now = new Date();
+    $("title").value = v ? v.title : "新年";
+    $("date").value = v ? v.date : (now.getFullYear() + 1) + "-01-01";
+    preview();
+  }
+  $("title").oninput = preview; $("date").oninput = preview;
+  $("form").onsubmit = function (e) {
+    e.preventDefault();
+    lp.set("target", { title: $("title").value.trim(), date: $("date").value }).then(function () {
+      $("ok").textContent = "已保存"; setTimeout(function () { $("ok").textContent = ""; }, 1500);
+    });
+  };
+  lp.get("target").then(fill).catch(function () { fill(null); });
+  fill(null);
+</script>

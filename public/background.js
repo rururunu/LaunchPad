@@ -65,7 +65,7 @@ if (isExtensionEnvironment) {
                         await chrome.tabs.sendMessage(tab.id, {
                             action: 'SHOW_SEARCH',
                             timestamp: Date.now()
-                        });
+                        }, { frameId: 0 });
                     } catch (e) {
                         console.error('SendMessage error:', e);
                     }
@@ -115,7 +115,7 @@ if (isExtensionEnvironment) {
     }
 
     async function fetchAsDataUrl(url) {
-        const res = await fetch(url, { credentials: 'omit' });
+        const res = await fetch(url, { credentials: 'omit', signal: AbortSignal.timeout(5000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (!blob || !blob.type.startsWith('image/') || blob.size < 16) throw new Error('invalid favicon');
@@ -130,7 +130,7 @@ if (isExtensionEnvironment) {
         const domain = getDomain(pageUrl);
         if (!domain) throw new Error('Invalid URL');
 
-        const cacheKey = FAVICON_CACHE_PREFIX + domain;
+        const cacheKey = (size >= 256 ? 'favicon_quality_v2_' : FAVICON_CACHE_PREFIX) + domain;
         const cached = await chrome.storage.local.get(cacheKey);
         const entry = parseFaviconEntry(cached[cacheKey]);
 
@@ -147,20 +147,44 @@ if (isExtensionEnvironment) {
         }
 
         let dataUrl = '';
-        try {
-            dataUrl = await fetchAsDataUrl(
-                `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`
-            );
-        } catch {
-            // 避免直接请求 github.com 等易限流站点的 /favicon.ico
-            const skipOriginFallback = /(^|\.)github\.com$/i.test(domain);
-            if (!skipOriginFallback) {
-                try {
-                    dataUrl = await fetchAsDataUrl(new URL(pageUrl).origin + '/favicon.ico');
-                } catch {
-                    dataUrl = '';
+        const origin = new URL(pageUrl).origin;
+        const candidates = size >= 256 ? [
+            origin + '/apple-touch-icon.png',
+            origin + '/apple-touch-icon-precomposed.png',
+            origin + '/icon.svg',
+            `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=256`,
+            origin + '/favicon.ico',
+        ] : [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`, origin + '/favicon.ico'];
+        if (size >= 256) {
+            try {
+                const page = await fetch(pageUrl, { credentials: 'omit', signal: AbortSignal.timeout(4000) });
+                const html = await page.text();
+                const declared = [];
+                for (const tag of html.match(/<link\b[^>]*>/gi) || []) {
+                    const attr = name => tag.match(new RegExp('\\b' + name + '\\s*=\\s*["\']([^"\']*)["\']', 'i'))?.[1];
+                    if (!/(^|\s)(icon|apple-touch-icon)(\s|$)/i.test(attr('rel') || '')) continue;
+                    const href = attr('href');
+                    if (!href) continue;
+                    const resolved = new URL(href, page.url || pageUrl);
+                    if (!['https:', 'http:'].includes(resolved.protocol)) continue;
+                    const score = /svg/i.test(attr('type') || href) ? 10000 : parseInt(attr('sizes') || '0');
+                    declared.push({ url: resolved.href, score: score || 0 });
                 }
-            }
+                candidates.unshift(...declared.sort((a, b) => b.score - a.score).slice(0, 6).map(item => item.url));
+            } catch { /* Use standard sources if website metadata is unavailable. */ }
+        }
+        let bestPixels = 0;
+        for (const candidate of candidates) {
+            try {
+                const result = await fetchAsDataUrl(candidate);
+                const blob = await (await fetch(result)).blob();
+                if (blob.type.includes('svg')) { dataUrl = result; break; }
+                const bitmap = await createImageBitmap(blob);
+                const pixels = Math.min(bitmap.width, bitmap.height);
+                bitmap.close();
+                if (pixels > bestPixels) { bestPixels = pixels; dataUrl = result; }
+                if (pixels >= (size >= 256 ? 180 : size)) break;
+            } catch { /* Try next source; host permissions and image formats vary. */ }
         }
 
         // 拉取失败时，尽量回退旧缓存

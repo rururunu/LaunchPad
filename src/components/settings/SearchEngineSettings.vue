@@ -4,8 +4,8 @@
       <div class="settings-section-head se-head">
         <div class="se-head-row">
           <div>
-            <h3 class="settings-section-title">已添加的引擎</h3>
-            <p class="settings-section-desc">添加 / 修改后自动保存并立即生效</p>
+            <h3 class="settings-section-title">{{ t('engines.addedTitle') }}</h3>
+            <p class="settings-section-desc">{{ t('engines.addedDesc') }}</p>
           </div>
           <span
             class="save-hint"
@@ -29,20 +29,20 @@
             <button
               type="button"
               class="card-summary"
-              :title="editingId === engine._id ? '收起' : '编辑'"
+              :title="editingId === engine._id ? t('engines.collapse') : t('engines.edit')"
               @click="toggleEdit(engine._id)"
             >
-              <span class="summary-name">{{ engine.label || '未命名引擎' }}</span>
+              <span class="summary-name">{{ engine.label || t('engines.unnamed') }}</span>
               <span class="summary-meta">
                 <span v-if="engine.key?.[0]" class="key-chip">{{ engine.key[0] }}</span>
                 <span v-if="engine.key?.[1]" class="key-chip key-chip--muted">{{ engine.key[1] }}</span>
-                <span v-if="engine.injectPrompt" class="inject-tag">填词</span>
+                <span v-if="engine.injectPrompt" class="inject-tag">{{ t('engines.inject') }}</span>
               </span>
             </button>
             <button
               type="button"
               class="icon-btn icon-btn--edit"
-              :title="editingId === engine._id ? '收起' : '编辑'"
+              :title="editingId === engine._id ? t('engines.collapse') : t('engines.edit')"
               @click="toggleEdit(engine._id)"
             >
               <Icon
@@ -50,7 +50,7 @@
                 class="text-sm"
               />
             </button>
-            <button type="button" class="icon-btn" title="删除" @click="removeEngine(index)">
+            <button type="button" class="icon-btn" :title="t('engines.delete')" @click="removeEngine(index)">
               <Icon icon="fluent:dismiss-24-filled" class="text-sm" />
             </button>
           </div>
@@ -59,18 +59,18 @@
           <div v-if="editingId === engine._id" class="card-editor">
             <div class="form-grid">
               <label class="form-row">
-                <span class="form-label">名称</span>
+                <span class="form-label">{{ t('engines.name') }}</span>
                 <input
                   v-model="engine.label"
                   class="form-input"
-                  placeholder="引擎名称"
+                  :placeholder="t('engines.namePlaceholder')"
                   @change="scheduleSave"
                   @blur="scheduleSave"
                 />
               </label>
 
               <label class="form-row">
-                <span class="form-label">链接</span>
+                <span class="form-label">{{ t('engines.url') }}</span>
                 <input
                   v-model="engine.jumpUrl"
                   class="form-input form-input--mono"
@@ -81,12 +81,12 @@
               </label>
 
               <div class="form-row form-row--keys">
-                <span class="form-label">指令</span>
+                <span class="form-label">{{ t('engines.command') }}</span>
                 <div class="key-pair">
                   <input
                     v-model="engine.key[0]"
                     class="form-input key-field"
-                    placeholder="主指令"
+                    :placeholder="t('engines.commandPlaceholder')"
                     spellcheck="false"
                     @change="scheduleSave"
                     @blur="scheduleSave"
@@ -94,7 +94,7 @@
                   <input
                     v-model="engine.key[1]"
                     class="form-input key-field"
-                    placeholder="别名"
+                    :placeholder="t('engines.aliasPlaceholder')"
                     spellcheck="false"
                     @change="scheduleSave"
                     @blur="scheduleSave"
@@ -105,8 +105,8 @@
 
             <div class="switch-row">
               <div class="switch-copy">
-                <span class="switch-title">对话页自动填词</span>
-                <span class="switch-desc">把查询词写入目标页输入框</span>
+                <span class="switch-title">{{ t('engines.injectTitle') }}</span>
+                <span class="switch-desc">{{ t('engines.injectDesc') }}</span>
               </div>
               <button
                 type="button"
@@ -114,7 +114,7 @@
                 role="switch"
                 :aria-checked="!!engine.injectPrompt"
                 :class="{ 'switch--on': engine.injectPrompt }"
-                :title="engine.injectPrompt ? '已开启' : '已关闭'"
+                :title="engine.injectPrompt ? t('engines.on') : t('engines.off')"
                 @click="toggleInject(engine, !engine.injectPrompt)"
               >
                 <span class="switch-thumb" />
@@ -126,13 +126,13 @@
 
       <div v-if="jumpData.length === 0" class="empty-state">
         <Icon icon="fluent:search-off-24-regular" class="text-3xl text-gray-300 dark:text-zinc-600" />
-        <p class="text-sm text-gray-400 dark:text-zinc-500 mt-2">暂无搜索引擎，可从下方预设添加</p>
+        <p class="text-sm text-gray-400 dark:text-zinc-500 mt-2">{{ t('engines.empty') }}</p>
       </div>
 
       <div class="preset-section">
         <div class="settings-section-head">
-          <h3 class="settings-section-title">预设引擎</h3>
-          <p class="settings-section-desc">点击即可添加，自动保存</p>
+          <h3 class="settings-section-title">{{ t('engines.presetTitle') }}</h3>
+          <p class="settings-section-desc">{{ t('engines.presetDesc') }}</p>
         </div>
 
         <div v-for="group in presetGroups" :key="group.id" class="preset-group">
@@ -145,7 +145,7 @@
               class="preset-chip"
               :class="{ 'preset-chip--added': isAdded(engine) }"
               :disabled="isAdded(engine)"
-              :title="isAdded(engine) ? '已添加' : `添加 ${engine.label}`"
+              :title="isAdded(engine) ? t('engines.added') : t('engines.addNamed', { name: engine.label })"
               @click="addPreset(engine)"
             >
               <FaviconImg :url="engine.iconUrl || engine.jumpUrl" :size="16" />
@@ -166,11 +166,11 @@
       <div class="action-left">
         <button type="button" class="btn-add" @click="addNewEngine">
           <Icon icon="fluent:add-24-filled" class="text-sm" />
-          自定义
+          {{ t('engines.custom') }}
         </button>
-        <button type="button" class="btn-add" title="恢复默认引擎列表" @click="restoreDefaults">
+        <button type="button" class="btn-add" :title="t('engines.restoreTitle')" @click="restoreDefaults">
           <Icon icon="fluent:arrow-reset-24-regular" class="text-sm" />
-          恢复默认
+          {{ t('engines.restore') }}
         </button>
       </div>
     </div>
@@ -181,13 +181,13 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useNotification } from '@/composables/useNotification';
+import { useI18n } from '@/i18n';
 import { storage } from '@/utils/storage';
 import FaviconImg from '@/components/ui/FaviconImg.vue';
 import { preloadFavicons } from '@/utils/iconCache';
 import {
   DEFAULT_SEARCH_ENGINES,
   PRESET_SEARCH_ENGINES,
-  ENGINE_GROUP_LABELS,
   cloneEngine,
   getEngineHost,
   type SearchEngine,
@@ -195,6 +195,7 @@ import {
 import { migrateJumpDataEngines } from '@/utils/jumpDataMigration';
 
 const { success, error } = useNotification();
+const { t } = useI18n();
 
 const LEGACY_INJECT_HOSTS = new Set([
   'kimi.com',
@@ -235,9 +236,9 @@ const toggleEdit = (id: number) => {
 };
 
 const saveHintText = computed(() => {
-  if (saveState.value === 'saving') return '保存中…';
-  if (saveState.value === 'saved') return '已自动保存';
-  if (saveState.value === 'error') return '保存失败';
+  if (saveState.value === 'saving') return t('engines.saving');
+  if (saveState.value === 'saved') return t('engines.saved');
+  if (saveState.value === 'error') return t('engines.saveFailed');
   return '';
 });
 
@@ -245,7 +246,7 @@ const presetGroups = computed(() => {
   const order: Array<NonNullable<SearchEngine['group']>> = ['general', 'cn', 'ai', 'dev', 'media'];
   return order.map((id) => ({
     id,
-    label: ENGINE_GROUP_LABELS[id],
+    label: t(`engines.groups.${id}`),
     engines: PRESET_SEARCH_ENGINES.filter((e) => e.group === id),
   }));
 });
@@ -317,10 +318,10 @@ const persistEngines = async (showToast = false) => {
       }
     }
     saveState.value = 'saved';
-    if (showToast) success('已更新', '搜索引擎已同步');
+    if (showToast) success(t('engines.updated'), t('engines.updatedDetail'));
   } catch (e) {
     saveState.value = 'error';
-    error('保存失败', e?.toString());
+    error(t('engines.saveFailed'), e?.toString());
   }
 };
 

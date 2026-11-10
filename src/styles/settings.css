@@ -1,18 +1,18 @@
 /* 设置页 / 主页共用视觉语言（不含搜索框） */
 
 :root {
-  --ui-accent: #2563eb;
-  --ui-accent-hover: #1d4ed8;
-  --ui-accent-soft: rgba(37, 99, 235, 0.08);
-  --ui-text: #1f2937;
-  --ui-text-secondary: #374151;
-  --ui-text-muted: #9ca3af;
-  --ui-border: rgba(0, 0, 0, 0.07);
-  --ui-border-strong: rgba(0, 0, 0, 0.1);
+  --ui-accent: #007aff;
+  --ui-accent-hover: #006ee6;
+  --ui-accent-soft: rgba(0, 122, 255, 0.10);
+  --ui-text: #1d1d1f;
+  --ui-text-secondary: #424245;
+  --ui-text-muted: #6e6e73;
+  --ui-border: rgba(60, 60, 67, 0.16);
+  --ui-border-strong: rgba(60, 60, 67, 0.24);
   --ui-surface: rgba(255, 255, 255, 0.72);
   --ui-surface-soft: rgba(0, 0, 0, 0.03);
-  --ui-radius: 12px;
-  --ui-radius-sm: 8px;
+  --ui-radius: 16px;
+  --ui-radius-sm: 10px;
   --ui-scrollbar-size: 4px;
   --ui-scrollbar-thumb: rgba(0, 0, 0, 0.15);
   --ui-scrollbar-thumb-hover: rgba(0, 0, 0, 0.28);
@@ -22,7 +22,7 @@
   :root {
     --ui-text: #f3f4f6;
     --ui-text-secondary: #e5e7eb;
-    --ui-text-muted: #71717a;
+    --ui-text-muted: #a1a1a6;
     --ui-border: rgba(255, 255, 255, 0.08);
     --ui-border-strong: rgba(255, 255, 255, 0.12);
     --ui-surface: rgba(255, 255, 255, 0.05);
@@ -62,7 +62,7 @@
   height: 100%;
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 24px;
+  padding: 24px 22px 32px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -179,13 +179,13 @@
 
 .settings-input {
   width: 100%;
-  height: 34px;
+  height: 36px;
   padding: 0 10px;
   font-size: 13px;
   color: var(--ui-text-secondary);
   background: var(--ui-surface-soft);
   border: 1px solid var(--ui-border-strong);
-  border-radius: 7px;
+  border-radius: 9px;
   outline: none;
   box-sizing: border-box;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -201,9 +201,9 @@
 }
 
 .settings-btn {
-  height: 34px;
+  height: 36px;
   padding: 0 14px;
-  border-radius: 8px;
+  border-radius: 9px;
   border: none;
   font-size: 13px;
   font-weight: 500;
@@ -280,3 +280,25 @@
     border-color: #3f3f46;
   }
 }
+
+/* A consistent control scale throughout the settings drawer. */
+.settings-page { gap: 28px; padding: 24px 28px 32px; overscroll-behavior: contain; }
+.settings-section { gap: 16px; }
+.settings-section-head { gap: 5px; }
+.settings-section-title { font-size: 15px; line-height: 1.4; letter-spacing: -.2px; }
+.settings-section-desc, .settings-hint { font-size: 12px; line-height: 1.6; }
+.settings-field-label { font-size: 12px; letter-spacing: 0; text-transform: none; }
+.settings-input, .settings-select { min-height: 38px; border-radius: 10px; border: 1px solid var(--ui-border); background: var(--ui-surface); color: var(--ui-text); box-sizing: border-box; }
+.settings-select { padding: 7px 10px; font: inherit; font-size: 13px; }
+.settings-input:hover, .settings-select:hover { border-color: var(--ui-border-strong); }
+.settings-input:focus, .settings-select:focus-visible { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-soft); }
+.settings-btn { min-height: 38px; border-radius: 10px; gap: 7px; transition: background .15s, box-shadow .15s; }
+.settings-btn:hover:not(:disabled) { transform: none; box-shadow: 0 2px 6px #0000000d; }
+.settings-btn:active:not(:disabled) { transform: none; box-shadow: inset 0 1px 3px #00000014; }
+.settings-btn:focus-visible, .settings-toggle-input:focus-visible { outline: 3px solid var(--ui-accent-soft); outline-offset: 3px; }
+.settings-toggle-row { min-height: 38px; gap: 10px; }
+.settings-toggle-list { gap: 4px; }
+.settings-toggle-input { width: 17px; height: 17px; }
+.settings-page input[type=range] { accent-color: var(--ui-accent); }
+@media(max-width: 560px) { .settings-page { padding: 20px 16px 28px; gap: 24px; } }
+@media(prefers-reduced-motion: reduce) { .settings-btn, .settings-input { transition: none; } }

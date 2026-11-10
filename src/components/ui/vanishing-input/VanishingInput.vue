@@ -22,7 +22,7 @@
 
     <!-- Text Input -->
     <input ref="inputRef" :disabled="animating" type="text"
-      class="relative z-50 size-full rounded-full border-none bg-transparent pr-20 text-sm text-black focus:outline-none focus:ring-0 sm:text-base dark:text-white"
+      class="relative z-50 size-full rounded-full border-none bg-transparent pr-20 text-lg text-black focus:outline-none focus:ring-0 dark:text-white"
       :class="[
         hasLeftIcon ? 'pl-10 sm:pl-11' : 'pl-4 sm:pl-10',
         animating ? 'text-transparent dark:text-transparent' : '',
@@ -54,7 +54,7 @@
         enter-to-class="opacity-100 translate-y-0" leave-from-class="opacity-100 translate-y-0"
         leave-to-class="opacity-0 -translate-y-4">
         <p :key="currentPlaceholder"
-          class="w-[calc(100%-2rem)] truncate text-left text-sm font-normal text-neutral-500 sm:text-base dark:text-zinc-500"
+          class="w-[calc(100%-2rem)] truncate text-left text-lg font-normal text-neutral-500 dark:text-zinc-500"
           :class="hasLeftIcon ? 'pl-10 sm:pl-11' : 'pl-4 sm:pl-10'">
           {{ placeholders[currentPlaceholder] }}
         </p>

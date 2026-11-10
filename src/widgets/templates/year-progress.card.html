@@ -1,0 +1,47 @@
+<div class="app" id="app"></div>
+<style>
+  .app { --bg:#fff; --text:#1d1d1f; --sub:#86868b; --track:rgba(60,60,67,.1);
+    height:100vh; padding:14px 18px; display:flex; flex-direction:column; justify-content:space-around; gap:6px; overflow:hidden;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --text:#f5f5f7; --sub:#98989d; --track:rgba(235,235,245,.14); } }
+  .row { display:flex; flex-direction:column; gap:5px; min-height:0; }
+  .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:12px; white-space:nowrap; }
+  .name { font-weight:600; }
+  .pct { color:var(--sub); font-variant-numeric:tabular-nums; }
+  .bar { height:6px; border-radius:999px; background:var(--track); overflow:hidden; }
+  .bar span { display:block; height:100%; border-radius:inherit; transition:width .6s ease; }
+</style>
+<script>
+  var COLORS = ["#ff9f0a", "#34c759", "#007aff", "#af52de"];
+  function build() {
+    var n = new Date(), y = n.getFullYear(), m = n.getMonth();
+    var day = (n.getHours() * 60 + n.getMinutes()) / 1440;
+    var dow = (n.getDay() + 6) % 7;
+    var dim = new Date(y, m + 1, 0).getDate();
+    var start = new Date(y, 0, 1), end = new Date(y + 1, 0, 1);
+    var doy = Math.floor((new Date(y, m, n.getDate()) - start) / 86400000);
+    var total = Math.round((end - start) / 86400000);
+    return [
+      { name: "今天", p: day },
+      { name: "本周", p: (dow + day) / 7 },
+      { name: "本月", p: (n.getDate() - 1 + day) / dim },
+      { name: "今年", p: (doy + day) / total, note: "第 " + (doy + 1) + " 天" }
+    ];
+  }
+  function render() {
+    var app = document.getElementById("app");
+    app.textContent = "";
+    build().forEach(function (r, i) {
+      var row = document.createElement("div"); row.className = "row";
+      var top = document.createElement("div"); top.className = "top";
+      var name = document.createElement("span"); name.className = "name"; name.textContent = r.name;
+      var pct = document.createElement("span"); pct.className = "pct"; pct.textContent = (r.note ? r.note + " · " : "") + Math.floor(r.p * 100) + "%";
+      top.appendChild(name); top.appendChild(pct);
+      var bar = document.createElement("div"); bar.className = "bar";
+      var fill = document.createElement("span"); fill.style.width = (r.p * 100).toFixed(1) + "%"; fill.style.background = COLORS[i];
+      bar.appendChild(fill); row.appendChild(top); row.appendChild(bar); app.appendChild(row);
+    });
+  }
+  render();
+  setInterval(render, 60000);
+</script>

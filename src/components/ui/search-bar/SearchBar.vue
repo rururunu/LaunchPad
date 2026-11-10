@@ -1,5 +1,5 @@
 <template>
-  <div class="search-bar-root">
+  <div class="search-bar-root" :class="{ 'search-bar-root--apple': appearance === 'apple' }">
     <div
       class="search-bar-inner"
       ref="searchBarInnerRef"
@@ -7,9 +7,9 @@
       :class="{ 'search-bar-inner--drop-above': dropdownPlacement === 'above' }"
     >
       <!-- 搜索框（引擎图标内嵌在 pill 左侧） -->
-      <VanishingInput
+      <component :is="appearance === 'apple' ? AppleSearchInput : VanishingInput"
         v-model="ide"
-        :placeholders="placeholderArray"
+        :placeholders="appearance === 'apple' ? applePlaceholders : placeholderArray"
         @submit="submit"
         @escape="handleEscapeKey"
         @focus="$emit('focus')"
@@ -17,11 +17,11 @@
         ref="vanishingInputRef"
       >
         <template #left-icon>
-          <button type="button" class="engine-icon-btn" :title="displayEngine?.label || '选择搜索引擎'" @click.stop="showEnginePicker = !showEnginePicker">
+          <button type="button" class="engine-icon-btn" :title="displayEngine?.label || t('search.chooseEngine')" @click.stop="showEnginePicker = !showEnginePicker">
             <FaviconImg :url="displayEngine?.iconUrl || displayEngine?.jumpUrl || ''" :size="20" />
           </button>
         </template>
-      </VanishingInput>
+      </component>
 
       <!-- 悬浮下拉区域（不占据布局空间） -->
       <div class="dropdowns">
@@ -41,8 +41,8 @@
             @click.stop
           >
             <div class="dropdown-header dropdown-header--row">
-              <span>选择搜索引擎</span>
-              <span class="dropdown-hints"><kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 确认</span>
+              <span>{{ t('searchDrop.choose') }}</span>
+              <span class="dropdown-hints"><kbd>↑</kbd><kbd>↓</kbd> {{ t('searchDrop.move') }} · <kbd>Enter</kbd> {{ t('searchDrop.confirm') }}</span>
             </div>
             <div class="dropdown-body dropdown-body--scroll ui-scroll" ref="engineListRef">
               <div
@@ -105,8 +105,8 @@
             class="dropdown-panel"
           >
             <div class="dropdown-header dropdown-header--row">
-              <span>切换搜索引擎</span>
-              <span class="dropdown-hints"><kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 确认 · <kbd>Esc</kbd> 关闭</span>
+              <span>{{ t('searchDrop.switch') }}</span>
+              <span class="dropdown-hints"><kbd>↑</kbd><kbd>↓</kbd> {{ t('searchDrop.move') }} · <kbd>Enter</kbd> {{ t('searchDrop.confirm') }} · <kbd>Esc</kbd> {{ t('searchDrop.close') }}</span>
             </div>
             <div class="dropdown-body dropdown-body--scroll ui-scroll" ref="engineListRef">
               <div
@@ -127,7 +127,7 @@
                 <kbd v-if="index === selectedEngineIndex" class="keyboard-key">Enter</kbd>
                 <span v-else class="dropdown-item-key">{{ engine.key.join(' / ') }}</span>
               </div>
-              <div v-if="filteredEngines.length === 0" class="dropdown-empty">无匹配引擎</div>
+              <div v-if="filteredEngines.length === 0" class="dropdown-empty">{{ t('searchDrop.noEngine') }}</div>
             </div>
           </div>
         </Transition>
@@ -142,7 +142,7 @@
           leave-to-class="opacity-0 scale-95 translate-y-[-6px]"
         >
           <div v-if="showBookmarkResults" class="dropdown-panel bookmark-results">
-            <div class="dropdown-header">收藏夹结果</div>
+            <div class="dropdown-header">{{ t('searchDrop.bookmarks') }}</div>
             <div class="dropdown-body dropdown-body--scroll ui-scroll">
               <div
                 v-for="(bookmark, index) in bookmarkResults.slice(0, 5)"
@@ -158,9 +158,9 @@
                 </div>
                 <kbd v-if="index === selectedBookmarkIndex" class="keyboard-key">Enter</kbd>
               </div>
-              <div v-if="bookmarkResults.length === 0" class="dropdown-empty">未找到匹配的收藏夹</div>
+              <div v-if="bookmarkResults.length === 0" class="dropdown-empty">{{ t('searchDrop.noBookmark') }}</div>
               <div v-if="bookmarkResults.length > 5" class="dropdown-more">
-                另有 {{ bookmarkResults.length - 5 }} 条结果
+                {{ t('searchDrop.moreBookmarks', { count: bookmarkResults.length - 5 }) }}
               </div>
             </div>
           </div>
@@ -176,7 +176,7 @@
           leave-to-class="opacity-0 scale-95 translate-y-[-6px]"
         >
           <div v-if="showTabResults" class="dropdown-panel tab-results">
-            <div class="dropdown-header">标签页</div>
+            <div class="dropdown-header">{{ t('searchDrop.tabs') }}</div>
             <div class="dropdown-body dropdown-body--scroll ui-scroll">
               <div
                 v-for="(tab, index) in tabResults.slice(0, 8)"
@@ -193,9 +193,9 @@
                 </div>
                 <kbd v-if="index === selectedTabIndex" class="keyboard-key">Enter</kbd>
               </div>
-              <div v-if="tabResults.length === 0" class="dropdown-empty">未找到匹配的标签页</div>
+              <div v-if="tabResults.length === 0" class="dropdown-empty">{{ t('searchDrop.noTab') }}</div>
               <div v-if="tabResults.length > 8" class="dropdown-more">
-                另有 {{ tabResults.length - 8 }} 个标签页
+                {{ t('searchDrop.moreTabs', { count: tabResults.length - 8 }) }}
               </div>
             </div>
           </div>
@@ -209,12 +209,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
-defineEmits<{ focus: []; blur: [] }>()
+withDefaults(defineProps<{ appearance?: 'classic' | 'apple' }>(), { appearance: 'classic' })
+const emit = defineEmits<{ focus: []; blur: []; navigate: [] }>()
 import { Icon } from '@iconify/vue'
+import AppleSearchInput from '@/components/ui/apple-input/AppleSearchInput.vue'
 import VanishingInput from '@/components/ui/vanishing-input/VanishingInput.vue'
 import SearchSuggestions from '@/components/ui/search-suggestions/SearchSuggestions.vue'
 import FaviconImg from '@/components/ui/FaviconImg.vue'
 import { storage } from '@/utils/storage'
+import { useI18n } from '@/i18n'
 import { preloadFavicons } from '@/utils/iconCache'
 import { DEFAULT_SEARCH_ENGINES, cloneEngine, buildSearchUrl } from '@/utils/searchEngines'
 import { migrateJumpDataEngines, serializeJumpEngines } from '@/utils/jumpDataMigration'
@@ -230,12 +233,14 @@ type TabResult = { id?: number; index: number; title: string; url: string; activ
 
 type JumpData = { key: string[]; label: string; jumpUrl: string; iconUrl?: string; injectPrompt?: boolean }
 
-const placeholderArray = [
+const { t } = useI18n()
+const applePlaceholders = computed(() => [t('search.placeholder')])
+const placeholderArray = computed(() => [
   'Hello!!🖐️',
-  '尝试输入 bd / gg / bi 加上搜索内容吧😎',
-  '输入 cd 展开引擎列表，↑↓ 选择，Enter 切换默认引擎😋',
-  '输入 * 后跟关键词可快速搜索收藏夹🌟',
-]
+  t('search.hintPrefix'),
+  t('search.hintEngines'),
+  t('search.hintBookmarks'),
+])
 
 const defaultJumpData: JumpData[] = DEFAULT_SEARCH_ENGINES.map(cloneEngine)
 
@@ -484,6 +489,7 @@ async function jumpTo(jumpType: string, toData: string) {
   }
   if (!url || !openOnce(url)) return
   window.open(url, '_blank', 'noopener,noreferrer')
+  emit('navigate')
 }
 
 let lastOpenUrl = ''
@@ -637,6 +643,7 @@ async function activateTab(tabId?: number) {
     if (tab.windowId) await w.chrome.windows.update(tab.windowId, { focused: true })
     showTabResults.value = false
     ide.value = ''
+    emit('navigate')
   } catch (e) {
     console.error('activateTab error:', e)
   }
@@ -654,6 +661,7 @@ async function createNewTab() {
   const w = window as any
   if (!w.chrome?.tabs) return
   await w.chrome.tabs.create({})
+  emit('navigate')
   ide.value = ''
 }
 
@@ -684,10 +692,12 @@ async function searchBookmarks(query: string) {
 }
 
 function openBookmark(url: string | undefined) {
-  if (url) { window.open(url, '_blank', 'noopener,noreferrer'); showBookmarkResults.value = false }
+  if (url) { window.open(url, '_blank', 'noopener,noreferrer'); showBookmarkResults.value = false; emit('navigate') }
 }
 
 const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.isComposing || e.keyCode === 229) return
+  if (!searchBarInnerRef.value?.contains(document.activeElement)) return
   const engineOpen = showEngineSelector.value || showEnginePicker.value
   if (engineOpen) {
     const list = activeEngineList.value
@@ -766,6 +776,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateDropdownMaxH)
   unsubJumpData?.()
 })
+defineExpose({
+  focus: () => (vanishingInputRef.value as { focus?: () => void } | null)?.focus?.(),
+  reset: () => { ide.value = ''; handleEscapeKey(); showEnginePicker.value = false },
+})
 </script>
 
 <style scoped>
@@ -842,4 +856,9 @@ onBeforeUnmount(() => {
   color: rgb(161 161 170);
   background: rgb(39 39 42);
 }
+
+.search-bar-root--apple .engine-icon-btn { width: 30px; height: 32px; border-radius: 8px; opacity: 1; transition: background .15s; }
+.search-bar-root--apple .engine-icon-btn:hover { transform: none; background: rgba(127,127,127,.1); }
+.search-bar-root--apple .engine-icon-btn:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.search-bar-root--apple .search-bar-inner { width: min(560px, calc(100vw - 32px)); }
 </style>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
 import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   show: boolean;
@@ -11,6 +14,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "close"): void;
 }>();
+
+const PROJECT_URL = "https://github.com/rururunu/LaunchPad";
+const appVersion = (() => {
+  try {
+    return chrome.runtime?.getManifest?.().version || __APP_VERSION__;
+  } catch {
+    return __APP_VERSION__;
+  }
+})();
 
 const currentSettingComponent = shallowRef<any>(props.select?.[0] ?? null);
 const visibleCount = ref(props.select.length);
@@ -82,8 +94,8 @@ onBeforeUnmount(() => {
         <aside class="drawer-panel" role="dialog" aria-modal="true" @click.stop>
           <!-- 顶栏 -->
           <header class="drawer-header">
-            <span class="drawer-title">{{ props.title || "设置" }}</span>
-            <button type="button" class="drawer-close" title="关闭" @click="handleClose">
+            <span class="drawer-title">{{ props.title || t("settings.title") }}</span>
+            <button type="button" class="drawer-close" :title="t('settings.close')" @click="handleClose">
               <Icon icon="fluent:dismiss-24-filled" class="text-lg" />
             </button>
           </header>
@@ -107,8 +119,8 @@ onBeforeUnmount(() => {
                 class="nav-more"
                 :class="{ 'nav-more--active': overflowIsActive || moreMenuOpen }"
                 :aria-expanded="moreMenuOpen"
-                title="更多设置"
-                aria-label="更多设置"
+                :title="t('settings.more')"
+                :aria-label="t('settings.more')"
                 @click="moreMenuOpen = !moreMenuOpen"
               >
                 <Icon icon="fluent:more-horizontal-24-regular" />
@@ -140,6 +152,21 @@ onBeforeUnmount(() => {
               :is="currentSettingComponent.in"
             />
           </div>
+
+          <!-- 底栏 -->
+          <footer class="drawer-footer">
+            <span class="footer-version">LaunchPad v{{ appVersion }}</span>
+            <a
+              class="footer-link"
+              :href="PROJECT_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="t('settings.github')"
+            >
+              <Icon icon="fluent:open-24-regular" />
+              GitHub
+            </a>
+          </footer>
         </aside>
       </div>
     </Transition>
@@ -169,13 +196,13 @@ onBeforeUnmount(() => {
   right: 0;
   left: auto;
   bottom: 0;
-  width: min(640px, 96vw);
+  width: min(820px, 94vw);
   display: flex;
   flex-direction: column;
-  background: rgba(250, 250, 250, 0.96);
-  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  background: #f5f5f7;
+  border-left: 1px solid rgba(60, 60, 67, 0.16);
   border-right: none;
-  box-shadow: -8px 0 40px rgba(0, 0, 0, 0.12);
+  box-shadow: -16px 0 48px rgba(0, 0, 0, 0.14);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
   pointer-events: auto;
@@ -186,14 +213,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  height: 60px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.12);
   flex-shrink: 0;
 }
 
 .drawer-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: #1f2937;
 }
@@ -205,7 +232,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: #6b7280;
   cursor: pointer;
@@ -221,11 +248,12 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 10;
   display: flex;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 4px;
+  padding: 10px 20px;
   overflow: visible;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 .nav-item {
@@ -233,12 +261,12 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   height: 36px;
-  padding: 0 13px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.42);
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   color: #4b5563;
   white-space: nowrap;
   flex-shrink: 0;
@@ -247,18 +275,18 @@ onBeforeUnmount(() => {
 }
 
 .nav-item:hover {
-  border-color: rgba(37, 99, 235, 0.36);
-  background-color: rgba(37, 99, 235, 0.06);
+  background-color: rgba(60, 60, 67, 0.07);
 }
 
 .nav-item--active {
-  border-color: rgba(37, 99, 235, 0.62);
-  background-color: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
+  border-color: rgba(60, 60, 67, 0.12);
+  background-color: #fff;
+  color: #007aff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .nav-item--active:hover {
-  background-color: rgba(37, 99, 235, 0.12);
+  background-color: #fff;
 }
 
 .nav-label {
@@ -271,25 +299,24 @@ onBeforeUnmount(() => {
 }
 
 .nav-more {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
+  border: 1px solid transparent;
+  border-radius: 9px;
   color: #4b5563;
-  background: rgba(255, 255, 255, 0.42);
+  background: transparent;
   cursor: pointer;
   font-size: 18px;
 }
 
 .nav-more:hover,
 .nav-more--active {
-  color: #2563eb;
-  border-color: rgba(37, 99, 235, 0.62);
-  background: rgba(37, 99, 235, 0.08);
+  color: #007aff;
+  background: rgba(60, 60, 67, 0.07);
 }
 
 .nav-more-menu {
@@ -300,8 +327,8 @@ onBeforeUnmount(() => {
   width: 156px;
   padding: 5px;
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.98);
+  border-radius: 10px;
+  background: #fff;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
 
@@ -332,18 +359,18 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.45);
+  background: #f5f5f7;
 }
 
 .content-header {
-  height: 40px;
-  padding: 0 16px;
+  height: 44px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: #1f2937;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
   flex-shrink: 0;
 }
 
@@ -353,20 +380,75 @@ onBeforeUnmount(() => {
   overflow: auto;
 }
 
+.drawer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 44px;
+  padding: 0 24px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #6b7280;
+  border-top: 1px solid rgba(60, 60, 67, 0.12);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  color: #4b5563;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.footer-link:hover {
+  color: #007aff;
+  background: rgba(60, 60, 67, 0.07);
+}
+
+.footer-link:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: 1px;
+}
+
 /* 暗色模式 */
 @media (prefers-color-scheme: dark) {
+  .drawer-footer {
+    color: #a1a1aa;
+    border-top-color: rgba(235, 235, 245, 0.10);
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .footer-link {
+    color: #d4d4d8;
+  }
+
+  .footer-link:hover {
+    color: #0a84ff;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
   .drawer-mask {
     background: rgba(0, 0, 0, 0.45);
   }
 
   .drawer-panel {
-    background: rgba(24, 24, 27, 0.96);
+    background: #1c1c1e;
     border-left-color: rgba(255, 255, 255, 0.08);
     box-shadow: -8px 0 40px rgba(0, 0, 0, 0.4);
   }
 
   .drawer-header {
-    border-bottom-color: rgba(255, 255, 255, 0.06);
+    border-bottom-color: rgba(235, 235, 245, 0.12);
   }
 
   .drawer-title {
@@ -383,31 +465,33 @@ onBeforeUnmount(() => {
   }
 
   .drawer-nav {
-    border-bottom-color: rgba(255, 255, 255, 0.05);
+    border-bottom-color: rgba(235, 235, 245, 0.10);
+    background: rgba(255, 255, 255, 0.025);
   }
 
   .nav-item {
     color: #a1a1aa;
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border-color: transparent;
+    background: transparent;
   }
 
   .nav-item:hover {
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: rgba(255, 255, 255, 0.07);
     color: #fff;
   }
 
   .nav-item--active,
   .nav-item--active:hover {
-    color: #60a5fa;
-    border-color: rgba(96, 165, 250, 0.55);
-    background: rgba(59, 130, 246, 0.14);
+    color: #0a84ff;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: none;
   }
 
   .nav-more {
     color: #a1a1aa;
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.04);
+    border-color: transparent;
+    background: transparent;
   }
 
   .nav-more-menu {
@@ -421,12 +505,12 @@ onBeforeUnmount(() => {
   }
 
   .drawer-body {
-    background: rgba(255, 255, 255, 0.02);
+    background: #1c1c1e;
   }
 
   .content-header {
     color: #f3f4f6;
-    border-bottom-color: rgba(255, 255, 255, 0.06);
+    border-bottom-color: rgba(235, 235, 245, 0.10);
   }
 }
 
@@ -473,6 +557,13 @@ onBeforeUnmount(() => {
 
   .drawer-nav {
     padding-inline: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+
+  .drawer-nav::-webkit-scrollbar { display: none; }
+  .nav-item { padding-inline: 10px; }
+  .content-header { padding-inline: 18px; }
+  .drawer-footer { padding-inline: 18px; }
 }
 </style>

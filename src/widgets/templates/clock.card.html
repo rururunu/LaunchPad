@@ -1,0 +1,29 @@
+<div class="app" id="app" title="点击切换 12/24 小时制">
+  <div class="time"><span id="hm">--:--</span><span class="sec" id="sec"></span></div>
+  <div class="day" id="day"></div>
+</div>
+<style>
+  .app { --bg:#fff; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2cqh; cursor:pointer; user-select:none;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; container-type:size; overflow:hidden; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --text:#f5f5f7; --sub:#98989d; --accent:#0a84ff; } }
+  .time { font-size:min(25cqw, 46cqh); font-weight:700; letter-spacing:-.04em; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sec { font-size:.38em; font-weight:600; color:var(--accent); margin-left:.12em; letter-spacing:0; }
+  .day { font-size:min(7cqw, 14cqh); color:var(--sub); font-weight:500; }
+</style>
+<script>
+  var WEEK = ["周日","周一","周二","周三","周四","周五","周六"];
+  var h12 = false;
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function tick() {
+    var d = new Date(), h = d.getHours();
+    if (h12) h = h % 12 || 12;
+    document.getElementById("hm").textContent = (h12 ? h : pad(h)) + ":" + pad(d.getMinutes());
+    document.getElementById("sec").textContent = pad(d.getSeconds());
+    document.getElementById("day").textContent = (d.getMonth() + 1) + "月" + d.getDate() + "日 " + WEEK[d.getDay()] + (h12 ? (d.getHours() < 12 ? " 上午" : " 下午") : "");
+  }
+  document.getElementById("app").onclick = function () { h12 = !h12; lp.set("h12", h12); tick(); };
+  lp.get("h12").then(function (v) { h12 = v === true; tick(); });
+  setInterval(tick, 1000);
+  tick();
+</script>

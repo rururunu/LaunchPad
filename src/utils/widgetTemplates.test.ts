@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest'
+import { isValidCustomWidget } from './customWidget'
+import { createWidgetFromTemplate, WIDGET_TEMPLATES } from './widgetTemplates'
+
+describe('widget templates', () => {
+  it('每个模板生成的组件都通过校验，且尺寸范围自洽', () => {
+    expect(WIDGET_TEMPLATES.length).toBeGreaterThanOrEqual(5)
+    for (const template of WIDGET_TEMPLATES) {
+      const widget = createWidgetFromTemplate(template, `t-${template.id}`)
+      expect(isValidCustomWidget(widget), template.id).toBe(true)
+      expect(widget.gridSize!.cols).toBeGreaterThanOrEqual(widget.minCols!)
+      expect(widget.gridSize!.cols).toBeLessThanOrEqual(widget.maxCols!)
+      expect(widget.gridSize!.rows).toBeGreaterThanOrEqual(widget.minRows!)
+      expect(widget.gridSize!.rows).toBeLessThanOrEqual(widget.maxRows!)
+    }
+  })
+
+  it('模板 id 唯一，代码不依赖外部资源', () => {
+    const ids = WIDGET_TEMPLATES.map((t) => t.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const template of WIDGET_TEMPLATES) {
+      expect(`${template.code}${template.popupCode ?? ''}`, template.id).not.toMatch(/(src|href)=["']https?:/)
+    }
+  })
+})

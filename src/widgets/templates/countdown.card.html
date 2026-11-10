@@ -1,0 +1,46 @@
+<div class="app">
+  <div class="in">
+    <div class="label" id="label">倒数日</div>
+    <div class="count"><span class="n" id="n">-</span><span class="u" id="u">天</span></div>
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+<style>
+  .app { --bg:#fff; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    height:100vh; overflow:hidden; cursor:pointer; container-type:size;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --text:#f5f5f7; --sub:#98989d; --accent:#0a84ff; } }
+  .in { height:100%; padding:16px 18px; display:flex; flex-direction:column; justify-content:space-between; gap:4px; }
+  .label { font-size:13px; font-weight:600; color:var(--accent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .count { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
+  .n { font-size:min(30cqw, 40cqh); font-weight:700; line-height:1; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+  .u { font-size:14px; color:var(--sub); font-weight:500; }
+  .foot { font-size:12px; color:var(--sub); }
+  @container (max-height:110px) {
+    .in { flex-direction:row; align-items:center; justify-content:flex-start; gap:12px; padding:10px 18px; }
+    .label { order:2; flex:1; min-width:0; }
+    .count { order:1; }
+    .n { font-size:34px; }
+    .foot { display:none; }
+  }
+</style>
+<script>
+  function nextNewYear() { var d = new Date(); return (d.getFullYear() + 1) + "-01-01"; }
+  var target = null;
+  function days(ds) {
+    var p = ds.split("-"), t = new Date(+p[0], p[1] - 1, +p[2]), n = new Date();
+    return Math.round((t - new Date(n.getFullYear(), n.getMonth(), n.getDate())) / 86400000);
+  }
+  function render() {
+    var t = target || { title: "新年", date: nextNewYear() };
+    var d = days(t.date);
+    document.getElementById("label").textContent = t.title;
+    document.getElementById("n").textContent = d === 0 ? "🎉" : Math.abs(d);
+    document.getElementById("u").textContent = d === 0 ? "就是今天" : (d > 0 ? "天后" : "天前");
+    document.getElementById("foot").textContent = t.date.replace(/-/g, ".");
+  }
+  lp.get("target").then(function (v) { target = v; render(); });
+  lp.onChange(function (k, v) { if (k === "target") { target = v; render(); } });
+  setInterval(render, 60000);
+  render();
+</script>

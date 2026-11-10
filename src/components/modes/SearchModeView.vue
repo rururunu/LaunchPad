@@ -1,15 +1,15 @@
 <template>
-  <div class="search-mode-view w-full h-full flex flex-col items-center justify-center relative pb-[25vh]">
+  <div class="search-mode-view w-full h-full flex flex-col items-center justify-center relative pb-[25vh]" :class="{ 'search-mode-view--cards': quickLinkDisplayStyle === 'card' }">
 
     <BlurReveal
       v-if="showTime || showDate"
       :delay="0.2"
       :duration="0.75"
-      class="p-4 sm:p-8"
+      class="clock-section p-4 sm:p-8"
     >
       <template v-if="showTime">
         <h2
-          class="mb-3 text-center tracking-widest select-none cursor-none"
+          class="clock-time mb-3 text-center tracking-widest select-none cursor-none"
           :class="clockTextClass"
           :style="clockTimeStyle"
         >
@@ -20,7 +20,7 @@
         <div class="mb-3" />
       </template>
       <div
-        class="mb-6 text-center text-sm tracking-[0.2em] sm:mb-12 select-none cursor-none"
+        class="clock-date mb-6 text-center text-sm tracking-[0.2em] sm:mb-12 select-none cursor-none"
         :class="clockTextClass"
         :style="clockDateStyle"
       >
@@ -33,9 +33,9 @@
       class="w-full relative z-2 flex flex-col items-center justify-center"
     >
       <div
-        class="w-full transition-all duration-500 ease-in-out transform scale-100 translate-y-0"
+        class="search-and-cards w-full"
       >
-        <SearchBar />
+        <SearchBar appearance="apple" />
         <Transition name="quick-visibility">
           <QuickLinks v-if="showQuickLinks" />
         </Transition>
@@ -45,16 +45,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import BlurReveal from '@/components/ui/blur-reveal/BlurReveal.vue'
 import SearchBar from '@/components/ui/search-bar/SearchBar.vue'
 import QuickLinks from '@/components/ui/QuickLinks.vue'
 import { useWallpaper } from '@/composables/useWallpaper'
+import { useQuickLinks } from '@/composables/useQuickLinks'
+import { useI18n } from '@/i18n'
 withDefaults(defineProps<{ showQuickLinks?: boolean }>(), {
   showQuickLinks: true,
 })
 
-const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+const { locale } = useI18n()
 
 const {
   wallpaperType,
@@ -68,6 +70,7 @@ const {
   clockFontWeight,
   useCustomColor,
 } = useWallpaper()
+const { quickLinkDisplayStyle, loadQuickLinkDisplayStyle } = useQuickLinks()
 
 const clockTextClass = computed(() => {
   if (useCustomColor.value) return ''
@@ -121,7 +124,9 @@ const updateDateTime = () => {
   const minutes = padTimeUnit(now.getMinutes())
   const seconds = padTimeUnit(now.getSeconds())
 
-  date.value = `${WEEKDAYS[now.getDay()]}  ·  ${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
+  const weekday = new Intl.DateTimeFormat(locale.value, { weekday: 'long' }).format(now)
+  const day = new Intl.DateTimeFormat(locale.value, { year: 'numeric', month: 'long', day: 'numeric' }).format(now)
+  date.value = `${weekday}  ·  ${day}`
   if (use24Hour.value) {
     const value = `${padTimeUnit(hours)}:${minutes}`
     time.value = showSeconds.value ? `${value}:${seconds}` : value
@@ -133,7 +138,10 @@ const updateDateTime = () => {
   }
 }
 
+watch(locale, updateDateTime)
+
 onMounted(() => {
+  loadQuickLinkDisplayStyle()
   updateDateTime()
   timer = setInterval(updateDateTime, 1000)
 })
@@ -144,6 +152,22 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Shared spacing rhythm: 12px within clock, 32px / 40px between sections. */
+.search-mode-view--cards {
+  height: auto; min-height: 100%; justify-content: flex-start;
+  padding-top: clamp(32px, 7vh, 80px); padding-bottom: 40px;
+  gap: 32px;
+}
+.search-mode-view--cards .clock-section { padding: 0; }
+.search-mode-view--cards .clock-time { margin: 0 0 12px; line-height: 1.1; }
+.search-mode-view--cards .clock-date { margin: 0; line-height: 1.5; }
+.search-mode-view--cards :deep(.quick-links) {
+  width: min(1080px, calc(100vw - 72px)); margin: 40px auto 0;
+}
+@media (max-width: 600px), (max-height: 700px) {
+  .search-mode-view--cards { padding-top: 32px; padding-bottom: 24px; gap: 24px; }
+  .search-mode-view--cards :deep(.quick-links) { width: calc(100vw - 32px); margin-top: 24px; }
+}
 .quick-visibility-enter-active,
 .quick-visibility-leave-active {
   transition: opacity 0.18s ease, transform 0.18s ease;

@@ -1,49 +1,52 @@
 <template>
   <nav
-    v-if="quickLinks.length"
+    v-if="quickLinks.length || customWidgets.length"
     ref="quickLinksRef"
     class="quick-links"
-    aria-label="快捷访问"
+    :class="[`quick-links--${quickLinkDisplayStyle}`, { 'quick-links--readonly': readOnly }]"
+    :aria-label="t('quick.label')"
+    @wheel="onPageWheel"
     @dragover.prevent="onTopContainerDragOver"
     @drop.prevent="onTopContainerDrop"
   >
-    <template v-for="item in topLevelItems" :key="item.key">
+    <template v-for="item in visibleTopItems" :key="item.key">
       <div
         v-if="item.kind === 'link'"
         class="quick-link-item quick-link-draggable quick-top-item"
-        :class="topItemClasses(item.key)"
-        draggable="true"
+        :class="[topItemClasses(item.key), `quick-card-size--${item.link.cardSize ?? 'small'}`]"
+        :style="gridStyle(item.kind === 'link' ? item.link : item.group)"
+        :draggable="!readOnly"
         @dragstart="onTopDragStart(item.key, item.link, $event)"
         @dragover.prevent.stop="onTopItemDragOver(item.key, $event)"
         @drop.prevent.stop="onTopItemDrop(item.key)"
         @dragend="finishDrag"
         @contextmenu.prevent.stop="openContextMenu(item.link, $event)"
       >
-        <QuickLinkChip :link="item.link" draggable="false" @click="onLinkClick" />
-        <button
-          type="button"
-          class="quick-link-remove"
-          title="移除"
-          :aria-label="`移除 ${item.link.label}`"
-          @pointerdown.stop
-          @click.stop.prevent="removeLinkById(item.link)"
-        >
-          <Icon icon="fluent:dismiss-16-filled" />
-        </button>
+        <QuickLinkChip
+          :link="item.link"
+          :icon-size="quickLinkDisplayStyle === 'card' ? 44 : 16"
+          :show-label="quickLinkDisplayStyle !== 'card' || showCardLabels"
+          :class="{ 'quick-link-chip--card': quickLinkDisplayStyle === 'card' }"
+          draggable="false"
+          @click="onLinkClick"
+        />
       </div>
 
       <div
         v-else
         :data-quick-group-id="item.group.id"
+        @contextmenu.prevent.stop="openCardMenu('group', item.group.id, item.group.label, $event)"
         class="quick-group-item quick-top-item"
         :class="[
           topItemClasses(item.key),
+          `quick-card-size--${item.group.cardSize ?? 'small'}`,
           {
             'quick-group-item--open': expandedGroupId === item.group.id,
             'quick-group-item--accept': groupDropTargetId === item.group.id,
           },
         ]"
-        draggable="true"
+        :style="gridStyle(item.kind === 'link' ? item.link : item.group)"
+        :draggable="!readOnly"
         @dragstart="onTopDragStart(item.key, undefined, $event)"
         @dragover.prevent.stop="onTopItemDragOver(item.key, $event)"
         @drop.prevent.stop="onTopItemDrop(item.key)"
@@ -52,28 +55,34 @@
         <button
           type="button"
           class="quick-group-chip"
+          :class="{ 'quick-group-chip--card': quickLinkDisplayStyle === 'card' }"
           draggable="false"
           :aria-expanded="expandedGroupId === item.group.id"
           @pointerdown.stop
           @click.stop="toggleGroup(item.group.id, $event)"
         >
-          <span class="quick-group-chip-label">{{ item.group.label }}</span>
+          <span v-if="quickLinkDisplayStyle !== 'card' || showCardLabels" class="quick-group-chip-label" :title="item.group.label">{{ item.group.label }}</span>
           <span v-if="groupDropTargetId === item.group.id" class="quick-group-drop-hint">
             <Icon icon="fluent:add-circle-16-filled" />
-            放入分组
+            {{ t('quick.dropIntoGroup') }}
           </span>
           <span v-else class="quick-group-icons" aria-hidden="true">
             <span v-for="link in item.group.links.slice(0, 3)" :key="link.id" class="quick-group-icon">
-              <FaviconImg :url="link.url" :size="18" />
+              <FaviconImg :url="link.url" :custom-src="link.iconUrl" :size="18" />
             </span>
           </span>
         </button>
       </div>
     </template>
 
+    <article v-for="widget in visibleWidgets" :key="widget.id" class="quick-widget-card" @dragover.prevent.stop="onTopItemDragOver(`widget:${widget.id}`, $event)" @drop.prevent.stop="onTopItemDrop(`widget:${widget.id}`)" :style="gridStyle(widget)" :class="topItemClasses(`widget:${widget.id}`)" @contextmenu.prevent.stop="openCardMenu('widget', widget.id, widget.title || t('quick.widget'), $event)">
+      <CustomWidgetFrame :code="widget.code || ''" :title="widget.title || t('quick.widget')" :widget-id="widget.id" />
+      <button v-if="widget.popupCode" class="widget-open" :aria-label="t('quick.openWidget', { title: widget.title || t('quick.widget') })" @click="openedWidget = widget" />
+      <button v-if="!readOnly" class="widget-drag" draggable="true" :aria-label="t('quick.dragWidget')" @dragstart="onTopDragStart(`widget:${widget.id}`, undefined, $event)" @dragend="finishDrag">⠿</button>
+    </article>
     <Transition name="quick-menu">
       <section
-        v-if="expandedGroup"
+        v-if="expandedGroup && quickLinkDisplayStyle !== 'card'"
         ref="groupPopoverRef"
         class="quick-group-popover"
         :style="{
@@ -96,31 +105,78 @@
               'quick-drag-gap-before': innerDropTarget?.id === link.id && innerDropTarget.side === 'before',
               'quick-drag-gap-after': innerDropTarget?.id === link.id && innerDropTarget.side === 'after',
             }"
-            draggable="true"
+            :draggable="!readOnly"
             @dragstart="onInnerDragStart(link, $event)"
             @dragover.prevent.stop="onInnerDragOver(link, $event)"
             @drop.prevent.stop="onInnerDrop(link)"
             @dragend="finishDrag"
             @contextmenu.prevent.stop="openContextMenu(link, $event)"
           >
-            <QuickLinkChip :link="link" draggable="false" @click="onLinkClick" />
-            <button
-              type="button"
-              class="quick-group-link-remove"
-              title="移除"
-              :aria-label="`移除 ${link.label}`"
-              @pointerdown.stop
-              @click.stop.prevent="removeLinkById(link)"
-            >
-              <Icon icon="fluent:dismiss-16-filled" />
-            </button>
+            <QuickLinkChip
+              :link="link"
+              :show-label="quickLinkDisplayStyle !== 'card' || showCardLabels"
+              :icon-size="quickLinkDisplayStyle === 'card' ? 56 : 16"
+              :class="quickLinkDisplayStyle === 'card' ? 'quick-group-app' : undefined"
+              draggable="false"
+              @click="onLinkClick"
+            />
           </div>
         </div>
       </section>
     </Transition>
   </nav>
 
+  <div v-if="quickLinkDisplayStyle === 'card' && cardPages.count > 1" class="card-pagination" :aria-label="t('quick.pagination')">
+    <button type="button" :disabled="currentPage === 0" :aria-label="t('quick.previousPage')" @click="changePage(-1)"><Icon icon="fluent:chevron-left-20-regular" /></button>
+    <span aria-live="polite">{{ currentPage + 1 }} / {{ cardPages.count }}</span>
+    <button type="button" :disabled="currentPage === cardPages.count - 1" :aria-label="t('quick.nextPage')" @click="changePage(1)"><Icon icon="fluent:chevron-right-20-regular" /></button>
+  </div>
+  <WidgetPopup v-if="openedWidget" :title="openedWidget.title || t('quick.widget')" :code="openedWidget.popupCode || ''" :widget-id="openedWidget.id" @close="openedWidget = null" />
   <Teleport to="body">
+    <dialog
+      v-if="expandedGroup && quickLinkDisplayStyle === 'card'"
+      ref="groupDialogRef"
+      class="quick-group-dialog"
+      :aria-label="expandedGroup.label"
+      @close="expandedGroupId = null"
+      @pointerdown="onGroupDialogPointerDown"
+      @click.self="expandedGroupId = null"
+    >
+      <header>
+        <h2 :class="{ 'quick-group-dialog-title--hidden': !showCardLabels }">{{ expandedGroup.label }}</h2>
+        <button type="button" class="quick-group-dialog-close" :aria-label="t('quick.close')" @click="expandedGroupId = null"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7 L17 17 M17 7 L7 17" /></svg></button>
+      </header>
+      <div class="quick-group-dialog-list" @dragover.prevent.stop @drop.prevent.stop="onInnerContainerDrop">
+        <div
+          v-for="link in expandedGroup.links"
+          :key="link.id"
+          class="quick-group-link quick-link-draggable"
+          :class="{
+            'quick-group-link--dragging': draggingId === link.id,
+            'quick-drag-gap-before': innerDropTarget?.id === link.id && innerDropTarget.side === 'before',
+            'quick-drag-gap-after': innerDropTarget?.id === link.id && innerDropTarget.side === 'after',
+          }"
+          :draggable="!readOnly"
+          @dragstart="onInnerDragStart(link, $event)"
+          @dragover.prevent.stop="onInnerDragOver(link, $event)"
+          @drop.prevent.stop="onInnerDrop(link)"
+          @dragend="finishDrag"
+          @contextmenu.prevent.stop="openContextMenu(link, $event)"
+        >
+          <QuickLinkChip
+            :link="link"
+            :show-label="showCardLabels"
+            :icon-size="56"
+            class="quick-group-app"
+            draggable="false"
+            @click="onLinkClick"
+          />
+        </div>
+      </div>
+    </dialog>
+  </Teleport>
+  <IconEditor v-if="editingIcon" :key="editingIcon.id" :link="editingIcon" @close="editingIcon = null" />
+  <Teleport :to="contextMenuTarget">
     <Transition name="quick-menu">
       <div
         v-if="contextMenu"
@@ -131,21 +187,30 @@
         @contextmenu.prevent
       >
         <div class="quick-context-title" :title="contextMenu.link.label">
-          <FaviconImg :url="contextMenu.link.url" :size="16" />
+          <FaviconImg v-if="contextKind === 'link'" :url="contextMenu.link.url" :custom-src="contextMenu.link.iconUrl" :size="16" />
           <span>{{ contextMenu.link.label }}</span>
         </div>
-        <button type="button" role="menuitem" @click="visitLink">
+        <button v-if="contextKind === 'link'" type="button" role="menuitem" @click="visitLink">
           <Icon icon="fluent:open-20-regular" />
-          <span>访问</span>
+          <span>{{ t('quick.openNewTab') }}</span>
         </button>
-        <button type="button" role="menuitem" @click="shareLink">
+        <div v-if="showLayoutMenu" class="card-layout-menu">
+          <div class="card-layout-heading"><Icon icon="fluent:grid-20-regular" />{{ t('quick.layout') }}</div>
+          <div class="card-layout-options" role="group" :aria-label="t('quick.layoutGrid')">
+            <button v-for="preset in availablePresets" :key="preset.cols + ':' + preset.rows" type="button" :aria-pressed="selectedGrid.cols === preset.cols && selectedGrid.rows === preset.rows" @click="selectLayout(preset)">{{ preset.cols }}×{{ preset.rows }}</button>
+          </div>
+        </div>
+        <button v-if="contextKind === 'link'" type="button" role="menuitem" @click="editIcon">
+          <Icon icon="fluent:image-edit-20-regular" /><span>{{ t('quick.editIcon') }}</span>
+        </button>
+        <button v-if="contextKind === 'link'" type="button" role="menuitem" @click="shareLink">
           <Icon icon="fluent:share-20-regular" />
-          <span>分享</span>
+          <span>{{ t('quick.share') }}</span>
         </button>
         <div class="quick-context-divider" />
-        <button type="button" class="quick-context-remove" role="menuitem" @click="removeLink">
+        <button type="button" class="quick-context-remove" role="menuitem" @click="removeContextItem">
           <Icon icon="fluent:delete-20-regular" />
-          <span>移除</span>
+          <span>{{ t('quick.delete') }}</span>
         </button>
       </div>
     </Transition>
@@ -153,22 +218,64 @@
 </template>
 
 <script setup lang="ts">
+import { paginateCards } from '@/utils/cardPages';
+import CustomWidgetFrame from '@/components/widgets/CustomWidgetFrame.vue';
+import WidgetPopup from '@/components/widgets/WidgetPopup.vue';
+import { removeWidgetData } from '@/utils/widgetData';
+import type { QuickAccessWidgetInstance } from '@/composables/useQuickLinks';
 import { Icon } from '@iconify/vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import IconEditor from '@/components/ui/IconEditor.vue';
 import FaviconImg from '@/components/ui/FaviconImg.vue';
 import QuickLinkChip from '@/components/ui/QuickLinkChip.vue';
 import { useNotification } from '@/composables/useNotification';
+import { useI18n } from '@/i18n';
 import { useQuickLinks } from '@/composables/useQuickLinks';
 import type { QuickLink } from '@/composables/useQuickLinks';
 
+const props = withDefaults(defineProps<{ readOnly?: boolean }>(), { readOnly: false });
 const {
   quickLinks,
   quickLinkGroups,
+  quickAccessWidgets,
+  showCardLabels,
+  loadShowCardLabels,
   loadQuickLinks,
   saveQuickLinks,
   saveQuickLinkGroups,
+  quickLinkDisplayStyle,
+  loadQuickLinkDisplayStyle,
+  saveQuickAccessWidgets,
+  loadQuickAccessWidgets,
 } = useQuickLinks();
 const { success, error } = useNotification();
+const { t } = useI18n();
+type GridSize = { cols: number; rows: number };
+type SizedCard = { minCols?: number; minRows?: number; maxCols?: number; maxRows?: number; id?: string; url?: string; gridSize?: GridSize; cardSize?: string; size?: string; type?: string };
+const gridSize = (item: SizedCard): GridSize => {
+  const preset = item.cardSize ?? item.size;
+  const fallback = preset === 'large' ? { cols: 4, rows: 3 } : preset === 'medium' ? { cols: 2, rows: 2 } : item.type ? { cols: 2, rows: 2 } : { cols: 1, rows: 1 };
+  return { cols: Math.max(item.minCols ?? 1, Math.min(item.maxCols ?? 12, Math.round(Number(item.gridSize?.cols) || fallback.cols))), rows: Math.max(item.minRows ?? 1, Math.min(item.maxRows ?? 6, Math.round(Number(item.gridSize?.rows) || fallback.rows))) };
+};
+const gridStyle = (item: SizedCard) => {
+  if (quickLinkDisplayStyle.value !== 'card') return {};
+  const key = `${item.type ? 'widget' : item.url ? 'link' : 'group'}:${item.id}`;
+  const cell = cardPages.value.positions.get(key);
+  return { '--card-cols': cell?.cols ?? gridSize(item).cols, '--card-rows': cell?.rows ?? gridSize(item).rows,
+    gridColumn: cell ? `${(cell.col - 1) * 2 + 1 + (cardPages.value.columnOffsets.get(cell.page) ?? 0)} / span ${cell.cols * 2}` : undefined,
+    gridRow: cell ? `${cell.row} / span ${cell.rows}` : undefined };
+};
+const previewGroup = (id: string, size: GridSize) => { const item = quickLinkGroups.value.find(item => item.id === id); if (item) item.gridSize = size; };
+const previewWidget = (id: string, size: GridSize) => { const item = quickAccessWidgets.value.find(item => item.id === id); if (item) item.gridSize = size; };
+const saveGridSize = async (kind: string, id: string, size: GridSize) => {
+  try {
+    if (kind === 'link') await saveQuickLinks(quickLinks.value.map(item => item.id === id ? { ...item, gridSize: size } : item));
+    else if (kind === 'group') { previewGroup(id, size); await saveQuickLinkGroups(); }
+    else { previewWidget(id, size); await saveQuickAccessWidgets(); }
+  } catch { error(t('quick.sizeSaveFailed'), t('quick.retry')); }
+};
+
+watch(quickLinkDisplayStyle, () => { finishDrag(); });
 const draggingId = ref<string | null>(null);
 const draggingTopKey = ref<string | null>(null);
 const topDropTarget = ref<{ key: string; side: 'before' | 'after' } | null>(null);
@@ -182,6 +289,14 @@ const quickLinksRef = ref<HTMLElement | null>(null);
 const groupPopoverRef = ref<HTMLElement | null>(null);
 const groupArrowX = ref(28);
 const groupPopoverClipPath = ref('none');
+const groupDialogRef = ref<HTMLDialogElement | null>(null);
+const editingIcon = ref<QuickLink | null>(null);
+const editIcon = () => {
+  if (!contextMenu.value || contextKind.value !== 'link') return;
+  editingIcon.value = { ...contextMenu.value.link };
+  closeContextMenu();
+};
+const contextKind = ref<'link' | 'group' | 'widget'>('link');
 const contextMenu = ref<{ link: QuickLink; x: number; y: number } | null>(null);
 
 const validGroupIds = computed(() => new Set(quickLinkGroups.value.map((group) => group.id)));
@@ -218,6 +333,62 @@ const topLevelItems = computed(() => [
 const expandedGroup = computed(() =>
   populatedGroups.value.find((group) => group.id === expandedGroupId.value) ?? null
 );
+watch(() => expandedGroup.value?.id, async (id) => {
+  if (!id || quickLinkDisplayStyle.value !== 'card') return;
+  await nextTick();
+  const dialog = groupDialogRef.value;
+  if (dialog && !dialog.open) dialog.showModal();
+});
+const onGroupDialogPointerDown = (event: PointerEvent) => {
+  if (event.target === event.currentTarget) return;
+  if (!(event.target instanceof Element && event.target.closest('.quick-context-menu'))) contextMenu.value = null;
+  event.stopPropagation();
+};
+// 只读模式（Alt+S 浮层）不显示小组件：沙箱页不对网页开放，组件在那里无法运行。
+const customWidgets = computed(() => props.readOnly ? [] : quickAccessWidgets.value.filter(w => w.type === 'custom' && typeof w.code === 'string'));
+const openedWidget = ref<QuickAccessWidgetInstance | null>(null);
+const desktopKeys = computed(() => {
+  const cards = topLevelItems.value.map((item, index) => ({ key: item.key, position: item.position, fallback: index }));
+  if (quickLinkDisplayStyle.value === 'card') cards.push(...customWidgets.value.map((w, index) => ({ key: `widget:${w.id}`, position: w.position, fallback: cards.length + index })));
+  return cards.sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) || a.fallback - b.fallback).map(item => item.key);
+});
+
+const currentPage = ref(0);
+const gridColumns = ref(window.innerWidth <= 480 ? 4 : window.innerWidth <= 900 ? 6 : 12);
+const updateGridColumns = () => { gridColumns.value = window.innerWidth <= 480 ? 4 : window.innerWidth <= 900 ? 6 : 12; };
+const cardPages = computed(() => {
+  const sizes = new Map<string, GridSize>();
+  topLevelItems.value.forEach(item => sizes.set(item.key, gridSize(item.kind === 'link' ? item.link : item.group)));
+  customWidgets.value.forEach(item => sizes.set(`widget:${item.id}`, gridSize(item)));
+  return paginateCards(desktopKeys.value.map(key => ({ key, ...sizes.get(key)! })), gridColumns.value);
+});
+const visibleWidgets = computed(() => quickLinkDisplayStyle.value === 'card' ? customWidgets.value.filter(w => cardPages.value.positions.get(`widget:${w.id}`)?.page === currentPage.value) : []);
+const visibleTopItems = computed(() => quickLinkDisplayStyle.value === 'card' ? topLevelItems.value.filter(item => cardPages.value.positions.get(item.key)?.page === currentPage.value) : topLevelItems.value);
+watch(() => cardPages.value.count, count => { currentPage.value = Math.min(currentPage.value, count - 1); });
+const changePage = (direction: number) => {
+  if (draggingTopKey.value || draggingId.value) return;
+  currentPage.value = Math.max(0, Math.min(cardPages.value.count - 1, currentPage.value + direction));
+  closeOverlays();
+};
+let wheelAmount = 0;
+let lastWheel = 0;
+let pageCooldown = 0;
+const onPageWheel = (event: WheelEvent) => {
+  if (quickLinkDisplayStyle.value !== 'card' || cardPages.value.count < 2 || event.ctrlKey) return;
+  const target = event.target as HTMLElement;
+  if (target.closest('textarea, input, select, [contenteditable=true], .quick-group-popover')) return;
+  // Let scrollable widget content consume its own scroll gestures.
+  for (let node: HTMLElement | null = target; node && node !== quickLinksRef.value; node = node.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight + 1) return;
+  }
+  event.preventDefault();
+  const now = Date.now();
+  if (now < pageCooldown) return;
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 600 : 1);
+  if (now - lastWheel > 180 || Math.sign(delta) !== Math.sign(wheelAmount)) wheelAmount = 0;
+  lastWheel = now; wheelAmount += delta;
+  if (Math.abs(wheelAmount) >= 60) { changePage(Math.sign(wheelAmount)); wheelAmount = 0; pageCooldown = now + 650; }
+};
 
 const updateGroupArrow = (element: HTMLElement) => {
   const navRect = quickLinksRef.value?.getBoundingClientRect();
@@ -231,6 +402,7 @@ const updateGroupArrow = (element: HTMLElement) => {
 
 const updateGroupPopoverShape = async () => {
   await nextTick();
+  if (quickLinkDisplayStyle.value === 'card') return;
   const rect = groupPopoverRef.value?.getBoundingClientRect();
   if (!rect) return;
   const width = Math.round(rect.width);
@@ -278,6 +450,7 @@ const prepareDrag = (event: DragEvent, value: string) => {
 };
 
 const onTopDragStart = (key: string, link: QuickLink | undefined, event: DragEvent) => {
+  if (props.readOnly) { event.preventDefault(); return; }
   expandedGroupId.value = null;
   draggingTopKey.value = key;
   draggingId.value = link?.id ?? null;
@@ -285,6 +458,7 @@ const onTopDragStart = (key: string, link: QuickLink | undefined, event: DragEve
 };
 
 const onInnerDragStart = (link: QuickLink, event: DragEvent) => {
+  if (props.readOnly) { event.preventDefault(); return; }
   draggingId.value = link.id;
   draggingTopKey.value = null;
   prepareDrag(event, `link:${link.id}`);
@@ -312,10 +486,10 @@ const topItemClasses = (key: string) => ({
   'quick-top-item--dragging': draggingTopKey.value === key,
   'quick-drag-gap-before': topDropTarget.value?.key === key
     && topDropTarget.value.side === 'before'
-    && !isLinkHoveringGroup(key),
+    && !groupDropTargetId.value,
   'quick-drag-gap-after': topDropTarget.value?.key === key
     && topDropTarget.value.side === 'after'
-    && !isLinkHoveringGroup(key),
+    && !groupDropTargetId.value,
 });
 
 function cancelGroupHover() {
@@ -350,7 +524,9 @@ const onTopItemDragOver = (key: string, event: DragEvent) => {
   if (!draggingTopKey.value && !getDraggingGroupedLink()) return;
   if (draggingTopKey.value === key) return;
   topDropTarget.value = { key, side: getDropSide(event) };
-  if (draggingTopKey.value && key.startsWith('group:')) startGroupHover(key);
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const inCenter = event.clientX > bounds.left + bounds.width * .25 && event.clientX < bounds.right - bounds.width * .25;
+  if (draggingTopKey.value && key.startsWith('group:') && inCenter) startGroupHover(key);
   else cancelGroupHover();
 };
 
@@ -364,24 +540,27 @@ const saveTopLevelOrder = async (keys: string[]) => {
     ...group,
     ...(positions.has(`group:${group.id}`) ? { position: positions.get(`group:${group.id}`) } : {}),
   }));
-  await Promise.all([saveQuickLinks(nextLinks), saveQuickLinkGroups(nextGroups)]);
+  await Promise.all([saveQuickLinks(nextLinks), saveQuickLinkGroups(nextGroups),
+    saveQuickAccessWidgets(quickAccessWidgets.value.map(widget => ({ ...widget, position: positions.get(`widget:${widget.id}`) ?? widget.position }))),
+  ]);
 };
 
 const moveTopItem = async (targetKey: string, side: 'before' | 'after') => {
   const sourceKey = draggingTopKey.value;
   if (!sourceKey) return;
-  const keys = topLevelItems.value.map((item) => item.key);
+  const keys = desktopKeys.value.slice();
   const sourceIndex = keys.indexOf(sourceKey);
   if (sourceIndex < 0) return resetDrag();
   keys.splice(sourceIndex, 1);
   const targetIndex = keys.indexOf(targetKey);
-  if (targetIndex < 0) return resetDrag();
-  keys.splice(targetIndex + (side === 'after' ? 1 : 0), 0, sourceKey);
+  if (targetKey === '__end__') keys.push(sourceKey);
+  else if (targetIndex < 0) return resetDrag();
+  else keys.splice(targetIndex + (side === 'after' ? 1 : 0), 0, sourceKey);
   resetDrag();
   try {
     await saveTopLevelOrder(keys);
   } catch {
-    error('排序保存失败', '请稍后重试');
+    error(t('quick.orderSaveFailed'), t('quick.retryLater'));
   }
 };
 
@@ -401,7 +580,7 @@ const onTopItemDrop = async (key: string) => {
 const onTopContainerDragOver = (event: DragEvent) => {
   // Keep the last item-level target while the pointer is over the visual insertion gap.
   if (event.target === event.currentTarget && groupHoverId.value) cancelGroupHover();
-  if (getDraggingGroupedLink() && !topDropTarget.value) {
+  if ((draggingTopKey.value || getDraggingGroupedLink()) && event.target === event.currentTarget) {
     topDropTarget.value = { key: '__end__', side: 'after' };
   }
 };
@@ -421,7 +600,7 @@ const moveGroupedLinkOut = async (targetKey: string, side: 'before' | 'after') =
   if (!source) return resetDrag();
 
   const sourceKey = `link:${source.id}`;
-  const keys = topLevelItems.value.map((item) => item.key);
+  const keys = desktopKeys.value.slice();
   if (targetKey === '__end__') {
     keys.push(sourceKey);
   } else {
@@ -445,9 +624,11 @@ const moveGroupedLinkOut = async (targetKey: string, side: 'before' | 'after') =
 
   resetDrag();
   try {
-    await Promise.all([saveQuickLinks(nextLinks), saveQuickLinkGroups(nextGroups)]);
+    await Promise.all([saveQuickLinks(nextLinks), saveQuickLinkGroups(nextGroups),
+    saveQuickAccessWidgets(quickAccessWidgets.value.map(widget => ({ ...widget, position: positions.get(`widget:${widget.id}`) ?? widget.position }))),
+  ]);
   } catch {
-    error('无法移出分组', '请稍后重试');
+    error(t('quick.leaveGroupFailed'), t('quick.retryLater'));
   }
 };
 
@@ -466,7 +647,7 @@ const moveLinkIntoGroup = async (groupId: string) => {
     expandedGroupId.value = groupId;
     await updateGroupArrowById(groupId);
   } catch {
-    error('无法加入分组', '请稍后重试');
+    error(t('quick.joinGroupFailed'), t('quick.retryLater'));
   }
 };
 
@@ -496,7 +677,7 @@ const onInnerDrop = async (target: QuickLink) => {
   try {
     await saveQuickLinks(next);
   } catch {
-    error('排序保存失败', '请稍后重试');
+    error(t('quick.orderSaveFailed'), t('quick.retryLater'));
   }
 };
 
@@ -508,10 +689,43 @@ const onInnerContainerDrop = async () => {
   await onInnerDrop(target);
 };
 
+const layoutPresets: GridSize[] = [{ cols: 1, rows: 1 }, { cols: 2, rows: 1 }, { cols: 1, rows: 2 }, { cols: 2, rows: 2 }, { cols: 4, rows: 2 }];
+const availablePresets = computed(() => {
+  if (contextKind.value !== 'widget') return layoutPresets;
+  const w = customWidgets.value.find(w => w.id === contextMenu.value?.link.id);
+  if (!w) return [];
+  const options: GridSize[] = [];
+  for (let rows = w.minRows ?? 1; rows <= (w.maxRows ?? 6); rows++) for (let cols = w.minCols ?? 1; cols <= (w.maxCols ?? 12); cols++) options.push({ cols, rows });
+  return options;
+});
+const selectedGrid = computed(() => {
+  const id = contextMenu.value?.link.id;
+  const items = contextKind.value === 'link' ? quickLinks.value : contextKind.value === 'group' ? quickLinkGroups.value : quickAccessWidgets.value;
+  return gridSize(items.find(item => item.id === id) ?? {});
+});
+const openCardMenu = (kind: 'group' | 'widget', id: string, label: string, event: MouseEvent) => {
+  openContextMenu({ id, label, url: '' }, event);
+  contextKind.value = kind;
+};
+const selectLayout = async (size: GridSize) => {
+  if (!contextMenu.value) return;
+  const { id } = contextMenu.value.link;
+  await saveGridSize(contextKind.value, id, size);
+  contextMenu.value = null;
+};
+const showLayoutMenu = computed(() => quickLinkDisplayStyle.value === 'card' && !(contextKind.value === 'link' && contextMenu.value?.link.groupId));
+const contextMenuTarget = computed(() => (
+  quickLinkDisplayStyle.value === 'card' && contextMenu.value?.link.groupId && groupDialogRef.value?.open
+    ? groupDialogRef.value
+    : 'body'
+));
 const openContextMenu = (link: QuickLink, event: MouseEvent) => {
+  if (props.readOnly) return;
+  contextKind.value = 'link';
   const menuWidth = 188;
-  const menuHeight = 178;
-  expandedGroupId.value = null;
+  const insideFolder = quickLinkDisplayStyle.value === 'card' && !!link.groupId;
+  const menuHeight = quickLinkDisplayStyle.value === 'card' && !insideFolder ? 350 : 220;
+  if (!insideFolder) expandedGroupId.value = null;
   contextMenu.value = {
     link,
     x: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
@@ -523,8 +737,10 @@ const closeContextMenu = () => {
   contextMenu.value = null;
 };
 
-const closeOverlays = () => {
+const closeOverlays = (event?: Event) => {
   closeContextMenu();
+  const target = event?.target;
+  if (target instanceof Element && target.closest('[data-quick-group-id]')) return;
   expandedGroupId.value = null;
 };
 
@@ -546,7 +762,7 @@ const copyToClipboard = async (text: string) => {
     textarea.select();
     const copied = document.execCommand('copy');
     textarea.remove();
-    if (!copied) throw new Error('复制失败');
+    if (!copied) throw new Error(t('quick.copyFailed'));
   }
 };
 
@@ -555,18 +771,38 @@ const shareLink = async () => {
   const link = contextMenu.value.link;
   try {
     await copyToClipboard(link.url);
-    success('链接已复制', link.label);
+    success(t('quick.linkCopied'), link.label);
   } catch {
-    error('复制失败', '无法访问剪贴板');
+    error(t('quick.copyFailed'), t('quick.clipboardDenied'));
   }
   closeContextMenu();
 };
 
-const removeLink = async () => {
+const removeContextItem = async () => {
   if (!contextMenu.value) return;
+  const { id, label } = contextMenu.value.link;
+  const kind = contextKind.value;
   const link = contextMenu.value.link;
-  await removeLinkById(link);
   closeContextMenu();
+  if (kind === 'link') { await removeLinkById(link); return; }
+  try {
+    if (kind === 'group') {
+      // Deleting a folder keeps its shortcuts on the desktop.
+      const links = quickLinks.value.map(item => {
+        if (item.groupId !== id) return { ...item };
+        const next = { ...item };
+        delete next.groupId;
+        delete next.position;
+        return next;
+      });
+      await saveQuickLinks(links);
+      await saveQuickLinkGroups(quickLinkGroups.value.filter(item => item.id !== id));
+    } else {
+      await saveQuickAccessWidgets(quickAccessWidgets.value.filter(item => item.id !== id));
+      await removeWidgetData(id);
+    }
+    success(t('quick.deleted'), label);
+  } catch { error(t('quick.deleteFailed'), t('quick.retryLater')); }
 };
 
 const removeLinkById = async (link: QuickLink) => {
@@ -575,9 +811,9 @@ const removeLinkById = async (link: QuickLink) => {
     if (link.groupId && !quickLinks.value.some((item) => item.groupId === link.groupId)) {
       expandedGroupId.value = null;
     }
-    success('已移除快捷访问', link.label);
+    success(t('quick.removed'), link.label);
   } catch {
-    error('移除失败', '请稍后重试');
+    error(t('quick.removeFailed'), t('quick.retryLater'));
   }
 };
 
@@ -594,9 +830,13 @@ watch(
 
 onMounted(() => {
   loadQuickLinks();
+  loadQuickAccessWidgets();
+  loadShowCardLabels();
+  loadQuickLinkDisplayStyle();
   window.addEventListener('pointerdown', closeOverlays);
   window.addEventListener('keydown', onKeydown);
   window.addEventListener('resize', closeOverlays);
+  window.addEventListener('resize', updateGridColumns);
   window.addEventListener('scroll', closeOverlays, true);
 });
 
@@ -605,6 +845,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', closeOverlays);
   window.removeEventListener('keydown', onKeydown);
   window.removeEventListener('resize', closeOverlays);
+  window.removeEventListener('resize', updateGridColumns);
   window.removeEventListener('scroll', closeOverlays, true);
 });
 </script>
@@ -620,6 +861,97 @@ onBeforeUnmount(() => {
   gap: 8px;
   border-radius: 8px;
   transition: box-shadow 0.15s ease;
+}
+
+.quick-links--card {
+  width: min(1080px, calc(100vw - 48px));
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 160px));
+  grid-auto-flow: row;
+  justify-content: center;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.quick-links--card .quick-card-size--small { grid-column: span 1; min-height: 132px; }
+.quick-links--card .quick-card-size--medium { grid-column: span 2; min-height: 178px; }
+.quick-links--card .quick-card-size--large { grid-column: span 3; min-height: 224px; }
+
+.quick-links--card .quick-link-item,
+.quick-links--card .quick-group-item {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  min-width: 128px;
+  resize: none;
+  overflow: hidden;
+}
+
+.quick-links--card :deep(.quick-link-chip--card) {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 18px;
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.quick-links--card .quick-link-item:has(.quick-link-chip--card) :deep(.quick-link-chip--card),
+.quick-links--card .quick-group-item:has(.quick-group-chip--card) .quick-group-chip--card {
+  height: 100% !important;
+}
+
+.quick-links--card .quick-card-size--small :deep(.quick-link-chip--card) { height: 132px; }
+.quick-links--card .quick-card-size--medium :deep(.quick-link-chip--card) { height: 178px; }
+.quick-links--card .quick-card-size--large :deep(.quick-link-chip--card) { height: 224px; }
+
+.quick-widget-card {
+  position: relative;
+  min-width: 0;
+  resize: none;
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.quick-links--card :deep(a.quick-link-chip--card:hover) {
+  transform: translateY(-2px);
+  border-color: rgba(15, 23, 42, 0.22);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick-links--card :deep(.quick-link-chip--card),
+  .quick-links--card .quick-group-chip--card {
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #f5f5f7;
+    background: rgba(30, 30, 32, 0.84);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.24);
+  }
+
+  .quick-links--card :deep(a.quick-link-chip--card:hover),
+  .quick-links--card .quick-group-item--open .quick-group-chip--card {
+    border-color: rgba(255, 255, 255, 0.24);
+    background: rgba(48, 48, 52, 0.94);
+  }
+
+  .quick-widget-card {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(30, 30, 32, 0.88);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.24);
+  }
 }
 
 .quick-group-item {
@@ -665,6 +997,25 @@ onBeforeUnmount(() => {
   transition: transform 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
+.quick-links--card .quick-group-chip--card {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  box-sizing: border-box;
+  flex-direction: column-reverse;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 8px;
+  border-radius: 18px;
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+}
+
+.quick-links--card .quick-card-size--small .quick-group-chip--card { min-height: 132px; }
+.quick-links--card .quick-card-size--medium .quick-group-chip--card { min-height: 178px; }
+.quick-links--card .quick-card-size--large .quick-group-chip--card { min-height: 224px; }
+
 .quick-group-chip:hover,
 .quick-group-item--open .quick-group-chip {
   border-color: rgba(15, 23, 42, 0.34);
@@ -689,6 +1040,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.quick-links--card .quick-group-chip-label {
+  max-width: 100%;
+  flex-shrink: 0;
 }
 
 .quick-group-icons {
@@ -743,6 +1099,184 @@ onBeforeUnmount(() => {
   filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.12)) drop-shadow(0 12px 24px rgba(15, 23, 42, 0.14));
   backdrop-filter: blur(20px) saturate(1.28);
   -webkit-backdrop-filter: blur(20px) saturate(1.28);
+}
+
+.quick-group-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(760px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  max-height: min(80dvh, 720px);
+  margin: auto;
+  padding: 12px 28px 28px;
+  border: 0;
+  border-radius: 28px;
+  overflow: auto;
+  color: #1d1d1f;
+  background: rgba(245, 245, 247, 0.97);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.quick-group-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.quick-group-dialog header {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 12px;
+}
+
+.quick-group-dialog h2 {
+  grid-column: 2;
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quick-group-dialog-title--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.quick-group-dialog-close {
+  grid-column: 3;
+  justify-self: end;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.quick-group-dialog-close svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.quick-group-dialog-close:hover {
+  background: rgba(60, 60, 67, 0.08);
+}
+
+.quick-group-dialog-list {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px 12px;
+}
+
+.quick-group-dialog .quick-group-link {
+  width: 96px;
+  max-width: 96px;
+  min-width: 96px;
+  flex: 0 0 96px;
+}
+
+.quick-group-dialog :deep(.quick-group-app) {
+  width: 96px;
+  max-width: 96px;
+  height: auto;
+  padding: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: #3a3a3c;
+  font-size: 11px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.quick-group-dialog :deep(a.quick-group-app:hover) {
+  transform: none;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.quick-group-dialog :deep(.quick-group-app .favicon-img-root) {
+  width: 56px !important;
+  height: 56px !important;
+  max-width: none;
+  max-height: none;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 6px 16px rgba(15, 23, 42, 0.1);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quick-group-dialog :deep(a.quick-group-app:hover .favicon-img-root) {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08), 0 10px 20px rgba(15, 23, 42, 0.16);
+}
+
+.quick-group-dialog :deep(.quick-group-app .favicon-img),
+.quick-group-dialog :deep(.quick-group-app .favicon-fallback) {
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 16px !important;
+  object-fit: contain;
+}
+
+.quick-group-dialog :deep(.quick-group-app .quick-link-label) {
+  display: -webkit-box;
+  width: 100%;
+  max-height: 2.5em;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.25;
+  font-size: 11px;
+  font-weight: 450;
+  color: #3a3a3c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick-group-dialog {
+    color: #f5f5f7;
+    background: rgba(44, 44, 46, 0.97);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  }
+
+  .quick-group-dialog-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .quick-group-dialog :deep(.quick-group-app),
+  .quick-group-dialog :deep(.quick-group-app .quick-link-label) {
+    color: #f5f5f7;
+  }
+
+  .quick-group-dialog :deep(.quick-group-app .favicon-img-root) {
+    background: #2c2c2e;
+  }
 }
 
 .quick-group-popover-list {
@@ -936,12 +1470,50 @@ onBeforeUnmount(() => {
   transform: translateY(-3px) scale(0.98);
 }
 
+@media (max-width: 760px) {
+  .quick-links--card {
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .quick-links--card .quick-card-size--small { min-height: 124px; }
+  .quick-links--card .quick-card-size--medium { grid-column: span 2; min-height: 160px; }
+  .quick-links--card .quick-card-size--large { grid-column: span 4; min-height: 180px; }
+
+  .quick-links--card .quick-card-size--small :deep(.quick-link-chip--card) { height: 124px; }
+  .quick-links--card .quick-card-size--medium :deep(.quick-link-chip--card) { height: 160px; }
+  .quick-links--card .quick-card-size--large :deep(.quick-link-chip--card) { height: 180px; }
+
+  .quick-links--card .quick-card-size--small .quick-group-chip--card { min-height: 124px; }
+  .quick-links--card .quick-card-size--medium .quick-group-chip--card { min-height: 160px; }
+  .quick-links--card .quick-card-size--large .quick-group-chip--card { min-height: 180px; }
+}
+
 @media (max-width: 480px) {
   .quick-links {
     justify-content: flex-start;
   }
 
-  :deep(.quick-link-chip) {
+  .quick-links--card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .quick-links--card .quick-card-size--small { min-height: 116px; }
+  .quick-links--card .quick-card-size--medium,
+  .quick-links--card .quick-card-size--large { grid-column: span 2; min-height: 156px; }
+
+  .quick-links--card .quick-card-size--small :deep(.quick-link-chip--card) { height: 116px; border-radius: 15px; }
+  .quick-links--card .quick-card-size--medium :deep(.quick-link-chip--card),
+  .quick-links--card .quick-card-size--large :deep(.quick-link-chip--card) { height: 156px; border-radius: 15px; }
+
+  .quick-links--card .quick-card-size--small .quick-group-chip--card { min-height: 116px; border-radius: 15px; }
+  .quick-links--card .quick-card-size--medium .quick-group-chip--card,
+  .quick-links--card .quick-card-size--large .quick-group-chip--card { min-height: 156px; border-radius: 15px; }
+
+  :deep(.quick-link-chip:not(.quick-link-chip--card)) {
     flex-shrink: 0;
     max-width: min(180px, calc(100vw - 92px));
   }
@@ -1000,4 +1572,129 @@ onBeforeUnmount(() => {
     background: rgba(255, 255, 255, 0.08);
   }
 }
+
+/* Integer grid spans are shared by shortcuts, folders and widgets. */
+.quick-links--card {
+  --grid-columns: 12;
+  /* Half-column tracks center sparse pages without changing card dimensions. */
+  grid-template-columns: repeat(calc(var(--grid-columns) * 2), minmax(0, 1fr));
+  grid-auto-rows: 80px;
+  gap: 14px;
+  align-items: stretch;
+}
+.quick-links--card > .quick-top-item,
+.quick-links--card > .quick-widget-card {
+  grid-column: span min(var(--card-cols, 1), var(--grid-columns));
+  grid-row: span var(--card-rows, 1);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+.quick-links--card > .quick-top-item :deep(.quick-link-chip--card),
+.quick-links--card > .quick-top-item .quick-group-chip--card { min-height: 0; height: 100%; }
+.quick-links--card > .quick-widget-card > :first-child { min-height: 0; height: 100%; overflow: auto; }
+@media (max-width: 900px) { .quick-links--card { --grid-columns: 6; grid-auto-rows: 76px; } }
+@media (max-width: 480px) { .quick-links--card { --grid-columns: 4; grid-auto-rows: 68px; gap: 10px; } }
+
+
+.quick-links--card .quick-link-draggable { cursor: pointer; }
+.quick-links--card :deep(.quick-link-chip--card) { border-radius: 14px; }
+
+.quick-links--card :deep(.quick-link-chip--card),
+.quick-links--card :deep(a.quick-link-chip--card:hover) {
+  background: var(--logo-surface, #fff);
+  color: var(--logo-text, #1d1d1f);
+  border-color: transparent;
+  backdrop-filter: none;
+}
+.quick-links--card :deep(.quick-link-chip--card .favicon-img-root) { width: 70% !important; height: 70% !important; max-width: 160px; max-height: 160px; min-height: 0; }
+.quick-links--card :deep(.quick-link-chip--card .favicon-img) { width: 100%; height: 100%; object-fit: contain; border-radius: 0 !important; }
+
+.card-layout-menu { padding: 8px 10px; }
+.card-layout-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; font-size: 13px; }
+.card-layout-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.quick-context-menu .card-layout-options button { display: block; padding: 6px 8px; text-align: center; border-radius: 999px; background: rgba(128,128,128,.14); font-size: 12px; }
+.quick-context-menu .card-layout-options button[aria-pressed="true"] { background: #007aff; color: white; }
+
+/* Apple Store store-home.css: rf-productnav-card-content / rf-ccard-content.
+   https://www.apple.com/store — values retrieved 2026-11-09.
+   Hover contrast is increased for photographic wallpapers; no positional motion. */
+.quick-links--card {
+  --card-shadow: 2px 4px 12px #00000014;
+  --card-hover-shadow: 0 0 0 1px #ffffff59, 0 4px 10px #00000033, 0 14px 28px #00000052;
+}
+.quick-links--card > .quick-top-item { overflow: visible; border-radius: 18px; }
+.quick-links--card > .quick-top-item:hover { z-index: 2; }
+.quick-links--card :deep(.quick-link-chip--card),
+.quick-links--card .quick-top-item .quick-group-chip--card {
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow .18s cubic-bezier(0,0,.5,1);
+}
+.quick-links--card > .quick-widget-card { border-radius: 28px; box-shadow: var(--card-shadow); transition: box-shadow .3s cubic-bezier(0,0,.5,1); }
+.quick-links--card :deep(a.quick-link-chip--card:hover),
+.quick-links--card .quick-top-item .quick-group-chip--card:hover,
+.quick-links--card > .quick-widget-card:hover { transform: none; box-shadow: var(--card-hover-shadow); }
+@media (prefers-color-scheme: dark) {
+  .quick-links--card {
+    --card-hover-shadow: 0 0 0 1px #ffffff73, 0 4px 12px #00000066, 0 16px 32px #00000080;
+  }
+}
+/* Size from the card's shorter dimension, with space reserved for its label. */
+.quick-links--card :deep(.quick-link-chip--card) { container-type: size; }
+.quick-links--card :deep(.quick-link-chip--card .favicon-img-root) {
+  width: min(64cqw, 68cqh, 144px) !important;
+  height: min(64cqw, 68cqh, 144px) !important;
+  max-width: var(--icon-native-width, 44px);
+  max-height: var(--icon-native-height, 44px);
+}
+.quick-links--card :deep(.quick-link-chip--card:has(.quick-link-label) .favicon-img-root) {
+  width: min(64cqw, calc(100cqh - 28px), 128px) !important;
+  height: min(64cqw, calc(100cqh - 28px), 128px) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .quick-links--card :deep(.quick-link-chip--card), .quick-links--card .quick-group-chip--card, .quick-links--card > .quick-widget-card { transition: none; }
+}
+
+/* Keep reading order identical to the stored desktop order. */
+.quick-links--card > .quick-top-item,
+.quick-links--card > .quick-widget-card { position: relative; cursor: grab; }
+.quick-links--card > .quick-top-item:active,
+.quick-links--card > .quick-widget-card:active { cursor: grabbing; }
+.quick-links--card > .quick-top-item--dragging { opacity: .35; transform: none; }
+.quick-links--card > .quick-drag-gap-before,
+.quick-links--card > .quick-drag-gap-after { transform: none; outline: 2px solid #007aff; outline-offset: 4px; }
+.quick-links--card > .quick-drag-gap-before::before,
+.quick-links--card > .quick-drag-gap-after::after { content: ''; position: absolute; top: 6px; bottom: 6px; width: 3px; border-radius: 3px; background: #007aff; pointer-events: none; }
+.quick-links--card > .quick-drag-gap-before::before { left: -8px; }
+.quick-links--card > .quick-drag-gap-after::after { right: -8px; }
+
+.card-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 20px auto; width: fit-content; padding: 6px; border: 1px solid #ffffff40; border-radius: 999px; background: rgba(245,245,247,.92); color: #1d1d1f; box-shadow: 2px 4px 12px #00000014; font-size: 13px; font-variant-numeric: tabular-nums; }
+.card-pagination button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.card-pagination button:hover:not(:disabled) { background: #0000000a; }
+.card-pagination button:disabled { opacity: .3; cursor: default; }
+.card-pagination button:focus-visible { outline: 2px solid #007aff; }
+.quick-links--readonly > .quick-top-item, .quick-links--readonly > .quick-top-item:active { cursor: pointer; }
+
+.widget-open { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
+.widget-drag {
+  position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 8px;
+  display: grid; place-items: center; font-size: 14px; line-height: 1;
+  background: rgba(255, 255, 255, 0.72); color: #3c3c43; cursor: grab;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  opacity: 0; transform: scale(0.9); pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease;
+}
+.quick-widget-card:hover > .widget-drag,
+.quick-widget-card:focus-within > .widget-drag,
+.quick-widget-card > .widget-drag:focus-visible { opacity: 1; transform: scale(1); pointer-events: auto; }
+.widget-drag:active { cursor: grabbing; }
+.widget-drag:focus-visible { outline: 2px solid #007aff; outline-offset: 1px; }
+@media (hover: none) { .widget-drag { opacity: 0.85; transform: none; pointer-events: auto; } }
+@media (prefers-color-scheme: dark) {
+  .widget-drag { background: rgba(60, 60, 67, 0.72); color: #f3f4f6; }
+}
+@media (prefers-reduced-motion: reduce) { .widget-drag { transition: none; } }
+.card-layout-options { max-height: 220px; overflow-y: auto; }
 </style>

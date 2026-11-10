@@ -1,0 +1,60 @@
+<div class="app">
+  <div class="modes">
+    <button type="button" data-mode="focus" class="chip active">专注</button>
+    <button type="button" data-mode="rest" class="chip">休息</button>
+  </div>
+  <div class="time" id="time" role="timer">25:00</div>
+  <div class="bar"><span id="bar"></span></div>
+  <div class="actions">
+    <button type="button" class="main" id="toggle">开始</button>
+    <button type="button" class="ghost" id="reset" aria-label="重置">重置</button>
+  </div>
+</div>
+<style>
+  .app { --bg:#fff; --text:#1d1d1f; --sub:#86868b; --track:rgba(60,60,67,.12); --accent:#ff3b30; --chip:rgba(60,60,67,.08);
+    height:100vh; padding:14px 16px; display:flex; flex-direction:column; justify-content:space-between; gap:8px; overflow:hidden;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; container-type:size; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --text:#f5f5f7; --sub:#98989d; --track:rgba(235,235,245,.16); --chip:rgba(235,235,245,.1); --accent:#ff453a; } }
+  .app.rest { --accent:#34c759; }
+  .modes { display:flex; gap:6px; }
+  .chip { border:0; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:500; color:var(--sub); background:transparent; cursor:pointer; }
+  .chip.active { background:var(--chip); color:var(--text); }
+  .time { font-size:min(22cqw, 36cqh); font-weight:700; line-height:1; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .bar { height:4px; border-radius:999px; background:var(--track); overflow:hidden; flex:none; }
+  .bar span { display:block; height:100%; width:0; background:var(--accent); border-radius:inherit; transition:width .4s linear; }
+  .actions { display:flex; gap:8px; flex:none; }
+  .actions button { height:30px; border:0; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
+  .main { flex:1; background:var(--accent); color:#fff; }
+  .ghost { padding:0 12px; background:var(--chip); color:var(--text); }
+  .app.done .time { color:var(--accent); }
+</style>
+<script>
+  var LEN = { focus: 25 * 60000, rest: 5 * 60000 };
+  var s = { mode: "focus", running: false, endAt: 0, left: LEN.focus };
+  var app = document.querySelector(".app");
+  function $(id) { return document.getElementById(id); }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function left() { return s.running ? Math.max(0, s.endAt - Date.now()) : s.left; }
+  function save() { lp.set("timer", s); }
+  function paint() {
+    var ms = left(), sec = Math.ceil(ms / 1000);
+    $("time").textContent = pad(Math.floor(sec / 60)) + ":" + pad(sec % 60);
+    $("bar").style.width = (100 - ms / LEN[s.mode] * 100) + "%";
+    $("toggle").textContent = s.running ? "暂停" : (ms === 0 ? "再来一轮" : (ms < LEN[s.mode] ? "继续" : "开始"));
+    app.className = "app" + (s.mode === "rest" ? " rest" : "") + (ms === 0 ? " done" : "");
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (c) { c.classList.toggle("active", c.dataset.mode === s.mode); });
+    if (s.running && ms === 0) { s.running = false; s.left = 0; save(); }
+  }
+  function reset(mode) { s = { mode: mode || s.mode, running: false, endAt: 0, left: LEN[mode || s.mode] }; save(); paint(); }
+  $("toggle").onclick = function () {
+    if (s.running) { s.left = left(); s.running = false; }
+    else { if (s.left <= 0) s.left = LEN[s.mode]; s.endAt = Date.now() + s.left; s.running = true; }
+    save(); paint();
+  };
+  $("reset").onclick = function () { reset(); };
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (c) { c.onclick = function () { reset(c.dataset.mode); }; });
+  lp.get("timer").then(function (v) { if (v && LEN[v.mode]) s = v; paint(); });
+  lp.onChange(function (k, v) { if (k === "timer" && v) { s = v; paint(); } });
+  setInterval(paint, 250);
+  paint();
+</script>

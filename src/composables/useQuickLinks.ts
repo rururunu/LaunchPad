@@ -1,18 +1,41 @@
+import { isValidCustomWidget } from '@/utils/customWidget';
 import { ref } from 'vue';
 import { storage } from '@/utils/storage';
 
 export interface QuickLink {
+  iconUrl?: string;
+  iconBackground?: string;
+  gridSize?: { cols: number; rows: number };
   id: string;
   label: string;
   url: string;
   groupId?: string;
   position?: number;
+  cardSize?: QuickCardSize;
 }
 
 export interface QuickLinkGroup {
+  gridSize?: { cols: number; rows: number };
   id: string;
   label: string;
   position?: number;
+  cardSize?: QuickCardSize;
+}
+
+export type QuickCardSize = 'small' | 'medium' | 'large';
+export interface QuickAccessWidgetInstance {
+  title?: string;
+  code?: string;
+  popupCode?: string;
+  minCols?: number;
+  minRows?: number;
+  maxCols?: number;
+  maxRows?: number;
+  position?: number;
+  gridSize?: { cols: number; rows: number };
+  id: string;
+  type: string;
+  size: QuickCardSize;
 }
 
 export interface QuickLinkRecommendation extends QuickLink {
@@ -21,6 +44,9 @@ export interface QuickLinkRecommendation extends QuickLink {
 
 const STORAGE_KEY = 'quickLinks';
 const GROUPS_STORAGE_KEY = 'quickLinkGroups';
+const DISPLAY_STYLE_STORAGE_KEY = 'quickLinkDisplayStyle';
+const WIDGETS_STORAGE_KEY = 'quickAccessWidgets';
+const CARD_LABELS_STORAGE_KEY = 'quickAccessCardLabels';
 const RECOMMENDATION_CACHE_KEY = 'quickLinkRecommendations';
 const REMOTE_RECOMMENDATION_URL =
   'https://raw.githubusercontent.com/rururunu/init-tab/master/public/quick-links.json';
@@ -35,9 +61,16 @@ const DEFAULT_QUICK_LINKS: QuickLink[] = [
 
 const quickLinks = ref<QuickLink[]>([]);
 const quickLinkGroups = ref<QuickLinkGroup[]>([]);
+const quickAccessWidgets = ref<QuickAccessWidgetInstance[]>([]);
+const showCardLabels = ref(false);
+export type QuickLinkDisplayStyle = 'pill' | 'card';
+const quickLinkDisplayStyle = ref<QuickLinkDisplayStyle>('pill');
 const recommendations = ref<QuickLinkRecommendation[]>([]);
 let loaded = false;
 let subscribed = false;
+let displayStyleLoad: Promise<void> | null = null;
+let widgetsLoad: Promise<void> | null = null;
+let cardLabelsLoad: Promise<void> | null = null;
 
 const parseLinks = (value: unknown): QuickLink[] | null => {
   try {
@@ -92,6 +125,84 @@ const saveQuickLinks = async (links: QuickLink[] = quickLinks.value) => {
 const saveQuickLinkGroups = async (groups: QuickLinkGroup[] = quickLinkGroups.value) => {
   quickLinkGroups.value = groups.map((group) => ({ ...group }));
   await storage.set(GROUPS_STORAGE_KEY, JSON.stringify(quickLinkGroups.value));
+};
+
+const parseCardSize = (value: unknown): QuickCardSize =>
+  value === 'medium' || value === 'large' ? value : 'small';
+
+const loadQuickAccessWidgets = async () => {
+  if (!widgetsLoad) {
+    widgetsLoad = (async () => {
+      const stored = await storage.get<string | QuickAccessWidgetInstance[]>(WIDGETS_STORAGE_KEY);
+      let parsed: unknown;
+      try { parsed = typeof stored === 'string' ? JSON.parse(stored) : stored; } catch { parsed = null; }
+      quickAccessWidgets.value = Array.isArray(parsed)
+        ? parsed.filter((item): item is QuickAccessWidgetInstance =>
+            Boolean(item && typeof item.id === 'string' && typeof item.type === 'string' && isValidCustomWidget(item))
+          ).map((item) => ({ ...item, size: parseCardSize(item.size) }))
+        : [];
+      if (stored === null) await storage.set(WIDGETS_STORAGE_KEY, '[]');
+      storage.onChange(WIDGETS_STORAGE_KEY, (changes) => {
+        let next: unknown;
+        try {
+          const value = changes[WIDGETS_STORAGE_KEY]?.newValue;
+          next = typeof value === 'string' ? JSON.parse(value) : value;
+        } catch { next = null; }
+        if (Array.isArray(next)) {
+          quickAccessWidgets.value = next
+            .filter((item): item is QuickAccessWidgetInstance =>
+              Boolean(item && typeof item.id === 'string' && typeof item.type === 'string' && isValidCustomWidget(item))
+            )
+            .map((item) => ({ ...item, size: parseCardSize(item.size) }));
+        }
+      });
+    })();
+  }
+  await widgetsLoad;
+};
+
+const saveQuickAccessWidgets = async (widgets: QuickAccessWidgetInstance[] = quickAccessWidgets.value) => {
+  quickAccessWidgets.value = widgets.map((widget) => ({ ...widget, size: parseCardSize(widget.size) }));
+  await storage.set(WIDGETS_STORAGE_KEY, JSON.stringify(quickAccessWidgets.value));
+};
+
+const loadShowCardLabels = async () => {
+  if (!cardLabelsLoad) cardLabelsLoad = (async () => {
+    const stored = await storage.get<string>(CARD_LABELS_STORAGE_KEY);
+    showCardLabels.value = stored === 'true';
+    if (stored === null) await storage.set(CARD_LABELS_STORAGE_KEY, 'false');
+  })();
+  await cardLabelsLoad;
+};
+
+const saveShowCardLabels = async (value: boolean) => {
+  showCardLabels.value = value;
+  await storage.set(CARD_LABELS_STORAGE_KEY, String(value));
+};
+
+const loadQuickLinkDisplayStyle = async () => {
+  if (!displayStyleLoad) {
+    displayStyleLoad = (async () => {
+      const stored = await storage.get<string>(DISPLAY_STYLE_STORAGE_KEY);
+      quickLinkDisplayStyle.value = stored === 'card' ? 'card' : 'pill';
+      if (stored === null) await storage.set(DISPLAY_STYLE_STORAGE_KEY, 'pill');
+      storage.onChange(DISPLAY_STYLE_STORAGE_KEY, (changes) => {
+        quickLinkDisplayStyle.value = changes[DISPLAY_STYLE_STORAGE_KEY]?.newValue === 'card' ? 'card' : 'pill';
+      });
+    })();
+  }
+  await displayStyleLoad;
+};
+
+const saveQuickLinkDisplayStyle = async (style: QuickLinkDisplayStyle) => {
+  const previous = quickLinkDisplayStyle.value;
+  quickLinkDisplayStyle.value = style;
+  try {
+    await storage.set(DISPLAY_STYLE_STORAGE_KEY, style);
+  } catch (error) {
+    quickLinkDisplayStyle.value = previous;
+    throw error;
+  }
 };
 
 const loadQuickLinks = async () => {
@@ -241,10 +352,19 @@ export function useQuickLinks() {
   return {
     quickLinks,
     quickLinkGroups,
+    quickAccessWidgets,
+    showCardLabels,
+    loadShowCardLabels,
+    saveShowCardLabels,
+    quickLinkDisplayStyle,
     recommendations,
     loadQuickLinks,
     loadRecommendations,
     saveQuickLinks,
     saveQuickLinkGroups,
+    loadQuickAccessWidgets,
+    saveQuickAccessWidgets,
+    loadQuickLinkDisplayStyle,
+    saveQuickLinkDisplayStyle,
   };
 }

@@ -2,7 +2,7 @@
 // 内存 Map + chrome.storage.local / localStorage
 import { isChromeStorageAvailable, storage } from './storage';
 
-const FAVICON_CACHE_PREFIX = 'favicon_';
+const FAVICON_CACHE_PREFIX = 'favicon_quality_v2_';
 const MAX_MEMORY_ENTRIES = 300;
 /** 缓存有效期：7 天，过期后进入标签页会后台重新拉取 */
 export const FAVICON_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -35,7 +35,10 @@ const isStale = (fetchedAt: number, ttlMs: number = FAVICON_TTL_MS): boolean => 
 /**
  * 兼容旧版纯 dataURL 字符串，以及新版 { dataUrl, fetchedAt }
  */
-const parseEntry = (stored: unknown): FaviconCacheEntry | null => {
+export const parseEntry = (stored: unknown): FaviconCacheEntry | null => {
+  if (typeof stored === 'string' && !stored.startsWith('data:')) {
+    try { return parseEntry(JSON.parse(stored)); } catch { return null; }
+  }
   if (typeof stored === 'string' && stored.startsWith('data:')) {
     // 旧格式：视为已过期，可先展示再刷新
     return { dataUrl: stored, fetchedAt: 0 };
@@ -55,7 +58,7 @@ const parseEntry = (stored: unknown): FaviconCacheEntry | null => {
   return null;
 };
 
-const getGoogleFaviconUrl = (domain: string, size: number = 32): string => {
+const getGoogleFaviconUrl = (domain: string, size: number = 256): string => {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
 };
 
@@ -88,7 +91,7 @@ const fetchViaBackground = async (
 };
 
 const fetchAndEncode = async (faviconUrl: string): Promise<string> => {
-  const response = await fetch(faviconUrl, { mode: 'cors', credentials: 'omit' });
+  const response = await fetch(faviconUrl, { mode: 'cors', credentials: 'omit', signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const blob = await response.blob();
   if (!blob.type.startsWith('image/') || blob.size < 16) throw new Error('Invalid favicon response');
@@ -102,7 +105,7 @@ const fetchAndEncode = async (faviconUrl: string): Promise<string> => {
 
 const tryLoadFavicon = async (
   url: string,
-  size: number = 32,
+  size: number = 256,
   force = false
 ): Promise<string> => {
   const domain = getDomain(url);
@@ -114,6 +117,17 @@ const tryLoadFavicon = async (
     // continue
   }
 
+  for (const path of ['/apple-touch-icon.png', '/apple-touch-icon-precomposed.png', '/icon.svg']) {
+    try {
+      const result = await fetchAndEncode(new URL(path, url).href);
+      if (result.startsWith('data:image/svg+xml')) return result;
+      const bitmap = await createImageBitmap(await (await fetch(result)).blob());
+      const pixels = Math.min(bitmap.width, bitmap.height);
+      bitmap.close();
+      if (pixels >= 180) return result;
+    } catch { /* Origin may not allow cross-origin reads. */ }
+  }
+  try { return await fetchAndEncode(getGoogleFaviconUrl(domain, 256)); } catch { /* Try origin below. */ }
   const domainSkipOrigin = /(^|\.)github\.com$/i.test(domain);
   if (!domainSkipOrigin) {
     try {
@@ -137,7 +151,7 @@ const addToMemoryCache = (domain: string, entry: FaviconCacheEntry): void => {
 
 const persistEntry = async (domain: string, entry: FaviconCacheEntry): Promise<void> => {
   try {
-    await storage.set(getCacheKey(domain), entry);
+    await storage.set(getCacheKey(domain), isChromeStorageAvailable() ? entry : JSON.stringify(entry));
   } catch {
     // 配额不足时忽略
   }
@@ -227,7 +241,7 @@ const refreshInBackground = (url: string, size: number): void => {
  */
 export const loadFavicon = async (
   url: string,
-  size: number = 32,
+  size: number = 256,
   options?: { force?: boolean }
 ): Promise<string> => {
   if (!url) return '';
@@ -235,6 +249,7 @@ export const loadFavicon = async (
   const domain = getDomain(url);
   if (!domain) return '';
 
+  size = Math.max(256, size);
   const force = options?.force === true;
 
   // 强制刷新：跳过新鲜缓存
@@ -316,7 +331,7 @@ export const refreshStaleFavicons = async (
 ): Promise<void> => {
   const ttlMs = options?.ttlMs ?? FAVICON_TTL_MS;
   const concurrency = options?.concurrency ?? 4;
-  const size = options?.size ?? 32;
+  const size = options?.size ?? 256;
 
   const domainToUrl = new Map<string, string>();
   for (const url of urls) {
@@ -415,4 +430,25 @@ export const clearFaviconCache = async (): Promise<void> => {
       for (const key of keys) localStorage.removeItem(key);
     }
   } catch {}
+};
+
+// Cache user-selected remote images by exact source URL, separately from site favicons.
+const remoteLoads = new Map<string, Promise<string>>();
+export const loadCustomIcon = (url: string): Promise<string> => {
+  if (url.startsWith('data:')) return Promise.resolve(url);
+  const existing = remoteLoads.get(url);
+  if (existing) return existing;
+  const task = (async () => {
+    const key = 'custom_icon_v1:' + url;
+    const entry = parseEntry(await storage.get(key));
+    if (entry) return entry.dataUrl;
+    try {
+      const dataUrl = await fetchAndEncode(url);
+      const next = { dataUrl, fetchedAt: Date.now() };
+      await storage.set(key, isChromeStorageAvailable() ? next : JSON.stringify(next));
+      return dataUrl;
+    } catch { return url; } // Remote sites without CORS still render through img.
+  })();
+  remoteLoads.set(url, task);
+  return task;
 };

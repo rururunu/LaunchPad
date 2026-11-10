@@ -1,0 +1,141 @@
+<div class="app">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="monthLabel">-</div>
+      <div class="modal-nav">
+        <button class="icon-btn" type="button" id="prev" aria-label="上个月">‹</button>
+        <button class="text-btn" type="button" id="today">今天</button>
+        <button class="icon-btn" type="button" id="next" aria-label="下个月">›</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="calendar-panel">
+        <div class="weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="task-panel">
+        <div class="task-header" id="panelDate">-</div>
+        <div class="task-list" id="taskList"></div>
+        <form class="add-box" id="addForm">
+          <input type="text" id="addInput" placeholder="添加事务，回车保存…" autocomplete="off" maxlength="120">
+          <button type="submit" class="add-btn">添加</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<style>
+  .app { --bg:#fff; --bg2:#f5f5f7; --bg3:#e5e5ea; --text:#1d1d1f; --sub:#86868b; --line:rgba(0,0,0,.08); --accent:#007aff; --hover:rgba(0,0,0,.04);
+    height:100vh; padding:20px; color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; background:var(--bg); }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --bg2:#2c2c2e; --bg3:#3a3a3c; --text:#f5f5f7; --sub:#98989d; --line:rgba(255,255,255,.1); --accent:#0a84ff; --hover:rgba(255,255,255,.06); } }
+  .app * { box-sizing:border-box; }
+  .modal { height:100%; display:flex; flex-direction:column; }
+  .modal-header { display:flex; justify-content:space-between; align-items:center; padding:0 4px 16px; flex:none; }
+  .modal-title { font-size:20px; font-weight:600; letter-spacing:-.02em; }
+  .modal-nav { display:flex; gap:8px; align-items:center; }
+  .icon-btn, .text-btn { height:32px; border:none; background:var(--bg2); color:var(--text); border-radius:8px; cursor:pointer; }
+  .icon-btn { width:32px; font-size:18px; display:flex; align-items:center; justify-content:center; }
+  .text-btn { padding:0 12px; font-size:13px; font-weight:500; }
+  .icon-btn:hover, .text-btn:hover { background:var(--bg3); }
+  .modal-body { flex:1; display:flex; gap:24px; min-height:0; }
+  .calendar-panel { flex:1.2; display:flex; flex-direction:column; min-height:0; }
+  .weekdays { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:8px; flex:none; }
+  .weekdays span { text-align:center; font-size:12px; font-weight:500; color:var(--sub); }
+  .grid { flex:1; display:grid; grid-template-columns:repeat(7,1fr); grid-auto-rows:1fr; gap:4px; min-height:0; }
+  .cell { border:none; background:transparent; border-radius:10px; font-size:14px; color:var(--text); cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:0; }
+  .cell:hover { background:var(--bg2); }
+  .cell.blank { pointer-events:none; }
+  .cell.today { background:var(--accent); color:#fff; font-weight:600; }
+  .cell.selected { box-shadow:inset 0 0 0 2px var(--accent); color:var(--accent); font-weight:600; }
+  .cell.today.selected { box-shadow:none; color:#fff; }
+  .cell .dot { width:4px; height:4px; border-radius:50%; background:var(--accent); }
+  .cell.today .dot { background:#fff; }
+  .task-panel { flex:1; background:var(--bg2); border-radius:16px; padding:20px; display:flex; flex-direction:column; min-height:0; }
+  .task-header { font-size:15px; font-weight:600; margin-bottom:12px; flex:none; }
+  .task-list { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+  .item { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; }
+  .item:hover { background:var(--hover); }
+  .check { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--sub); flex:none; cursor:pointer; position:relative; }
+  .item.done .check { background:var(--accent); border-color:var(--accent); }
+  .item.done .check::after { content:""; position:absolute; left:4px; top:3.5px; width:7px; height:3.5px; border-left:2px solid #fff; border-bottom:2px solid #fff; transform:rotate(-45deg); }
+  .txt { font-size:14px; line-height:1.4; word-break:break-all; }
+  .item.done .txt { color:var(--sub); text-decoration:line-through; }
+  .del-btn { margin-left:auto; border:none; background:transparent; color:var(--sub); font-size:16px; cursor:pointer; opacity:0; padding:0 4px; }
+  .item:hover .del-btn, .del-btn:focus { opacity:1; }
+  .del-btn:hover { color:#ff3b30; }
+  .empty { flex:1; display:flex; align-items:center; justify-content:center; color:var(--sub); font-size:13px; }
+  .add-box { display:flex; gap:8px; margin-top:14px; flex:none; }
+  .add-box input { flex:1; min-width:0; height:36px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--text); padding:0 12px; font-size:13px; outline:none; }
+  .add-box input:focus { border-color:var(--accent); }
+  .add-btn { height:36px; padding:0 16px; border:none; background:var(--accent); color:#fff; border-radius:10px; font-size:13px; font-weight:500; cursor:pointer; }
+  @media (max-width:600px) { .modal-body { flex-direction:column; overflow-y:auto; } .calendar-panel { flex:none; min-height:300px; } .task-panel { flex:none; min-height:240px; } }
+</style>
+<script>
+  var WEEK = ["周日","周一","周二","周三","周四","周五","周六"];
+  var db = {}, nextId = 1;
+  var now = new Date();
+  var year = now.getFullYear(), month = now.getMonth();
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function ymd(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  var todayStr = ymd(now), selected = todayStr;
+  function $(id) { return document.getElementById(id); }
+  function tasksOf(ds) { return db[ds] || []; }
+  function save() {
+    Object.keys(db).forEach(function (k) { if (!db[k].length) delete db[k]; });
+    lp.set("tasks", db);
+  }
+  function renderCalendar() {
+    $("monthLabel").textContent = year + "年" + (month + 1) + "月";
+    var grid = $("grid"); grid.textContent = "";
+    var first = new Date(year, month, 1).getDay(), days = new Date(year, month + 1, 0).getDate();
+    for (var i = 0; i < first; i++) { var b = document.createElement("button"); b.className = "cell blank"; b.tabIndex = -1; grid.appendChild(b); }
+    for (var d = 1; d <= days; d++) {
+      (function (day) {
+        var ds = year + "-" + pad(month + 1) + "-" + pad(day);
+        var cell = document.createElement("button"); cell.type = "button"; cell.className = "cell";
+        var s = document.createElement("span"); s.textContent = day; cell.appendChild(s);
+        if (ds === todayStr) cell.classList.add("today");
+        if (ds === selected) cell.classList.add("selected");
+        if (tasksOf(ds).length) { var dot = document.createElement("div"); dot.className = "dot"; cell.appendChild(dot); }
+        cell.onclick = function () { selected = ds; render(); };
+        grid.appendChild(cell);
+      })(d);
+    }
+  }
+  function renderTasks() {
+    var p = selected.split("-");
+    $("panelDate").textContent = Number(p[1]) + "月" + Number(p[2]) + "日 · " + WEEK[new Date(+p[0], p[1] - 1, +p[2]).getDay()];
+    var list = $("taskList"); list.textContent = "";
+    var tasks = tasksOf(selected);
+    if (!tasks.length) { var e = document.createElement("div"); e.className = "empty"; e.textContent = "暂无事务"; list.appendChild(e); return; }
+    tasks.forEach(function (t) {
+      var row = document.createElement("div"); row.className = "item" + (t.done ? " done" : "");
+      var c = document.createElement("div"); c.className = "check"; c.setAttribute("role", "checkbox"); c.setAttribute("aria-checked", t.done ? "true" : "false");
+      var x = document.createElement("div"); x.className = "txt"; x.textContent = t.text;
+      var del = document.createElement("button"); del.type = "button"; del.className = "del-btn"; del.textContent = "✕"; del.setAttribute("aria-label", "删除");
+      c.onclick = function () { t.done = !t.done; save(); render(); };
+      del.onclick = function () { db[selected] = tasks.filter(function (y) { return y.id !== t.id; }); save(); render(); };
+      row.appendChild(c); row.appendChild(x); row.appendChild(del); list.appendChild(row);
+    });
+  }
+  function render() { renderCalendar(); renderTasks(); }
+  function load(v) {
+    db = v && typeof v === "object" ? v : {};
+    Object.keys(db).forEach(function (k) { db[k].forEach(function (t) { if (t.id >= nextId) nextId = t.id + 1; }); });
+    render();
+  }
+  function shift(n) { var d = new Date(year, month + n, 1); year = d.getFullYear(); month = d.getMonth(); render(); }
+  $("prev").onclick = function () { shift(-1); };
+  $("next").onclick = function () { shift(1); };
+  $("today").onclick = function () { year = now.getFullYear(); month = now.getMonth(); selected = todayStr; render(); };
+  $("addForm").onsubmit = function (e) {
+    e.preventDefault();
+    var input = $("addInput"), text = input.value.trim();
+    if (!text) return;
+    (db[selected] = db[selected] || []).push({ id: nextId++, text: text, done: false });
+    input.value = ""; save(); render();
+  };
+  lp.get("tasks").then(load).catch(function () { load(null); });
+  lp.onChange(function (k, v) { if (k === "tasks") load(v); });
+  render();
+</script>

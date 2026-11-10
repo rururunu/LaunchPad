@@ -1,6 +1,6 @@
 /// <reference types="chrome" />
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import Dialog from './components/ui/dialog/Dialog.vue'
 import NotificationContainer from './components/ui/notification/NotificationContainer.vue'
@@ -11,6 +11,7 @@ import { hydrateFaviconCache, refreshStaleFavicons } from '@/utils/iconCache'
 import { useNotification } from '@/composables/useNotification'
 import { usePreferredColorScheme } from '@/composables/usePreferredColorScheme'
 import { getWallpaperSourceMeta, type WallpaperSourceId } from '@/utils/wallpaperSources'
+import { useI18n } from '@/i18n'
 
 const {
   wallpaperType,
@@ -28,6 +29,7 @@ const {
   isRestoringWallpaper,
 } = useWallpaper()
 const { success, error } = useNotification()
+const { t } = useI18n()
 
 const isLoading = ref(false)
 const isRefreshingWallpaper = ref(false)
@@ -89,13 +91,13 @@ const QuickLinkSettings = defineAsyncComponent(() => import('@/components/settin
 const DataTransferSettings = defineAsyncComponent(() => import('@/components/settings/DataTransferSettings.vue'))
 const TutorialSettings = defineAsyncComponent(() => import('@/components/settings/TutorialSettings.vue'))
 
-const setUpSelect = shallowRef([
-  { key: 'basic',    icon: 'fluent-color:settings-48',        label: '基础设置', in: BasicSettings },
-  { key: 'img',      icon: 'fluent-color:image-48',           label: '背景设置', in: BackgroundSettings },
-  { key: 'jump',     icon: 'fluent-color:link-multiple-24',   label: '搜索引擎', in: SearchEngineSettings },
-  { key: 'quick',    icon: 'fluent:flash-24-filled',           label: '快捷访问', in: QuickLinkSettings },
-  { key: 'transfer', icon: 'fluent:arrow-sync-24-regular',     label: '导入导出', in: DataTransferSettings },
-  { key: 'tutorial', icon: 'fluent-color:book-open-48',       label: '使用教程', in: TutorialSettings },
+const setUpSelect = computed(() => [
+  { key: 'basic',    icon: 'fluent-color:settings-48',        label: t('settings.tabs.basic'), in: BasicSettings },
+  { key: 'img',      icon: 'fluent-color:image-48',           label: t('settings.tabs.background'), in: BackgroundSettings },
+  { key: 'jump',     icon: 'fluent-color:link-multiple-24',   label: t('settings.tabs.search'), in: SearchEngineSettings },
+  { key: 'quick',    icon: 'fluent:flash-24-filled',           label: t('settings.tabs.quick'), in: QuickLinkSettings },
+  { key: 'transfer', icon: 'fluent:arrow-sync-24-regular',     label: t('settings.tabs.transfer'), in: DataTransferSettings },
+  { key: 'tutorial', icon: 'fluent-color:book-open-48',       label: t('settings.tabs.tutorial'), in: TutorialSettings },
 ])
 
 function onSetup() {
@@ -114,17 +116,17 @@ async function favoriteCurrentWallpaper() {
   const favorite: FavoriteWallpaper = {
     url,
     sourceId,
-    sourceName: wallpaperType.value === 'custom' ? '自定义图片' : getWallpaperSourceMeta(sourceId).name,
+    sourceName: wallpaperType.value === 'custom' ? t('app.customImage') : getWallpaperSourceMeta(sourceId).name,
     savedAt: Date.now(),
   }
   const previous = favoriteWallpapers.value
   favoriteWallpapers.value = [favorite, ...previous]
   try {
     await storage.set(FAVORITE_WALLPAPERS_KEY, JSON.stringify(favoriteWallpapers.value))
-    success('收藏成功', '当前壁纸已保存到插件')
+    success(t('app.favoriteSaved'), t('app.favoriteSavedDetail'))
   } catch (e) {
     favoriteWallpapers.value = previous
-    error('收藏失败', e instanceof Error ? e.message : String(e))
+    error(t('app.favoriteFailed'), e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -256,7 +258,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="text-center relative z-10">
           <div class="inline-block w-10 h-10 border-4 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
-          <p class="mt-2 text-white text-shadow-sm">加载中...</p>
+          <p class="mt-2 text-white text-shadow-sm">{{ t('app.loading') }}</p>
         </div>
       </div>
     </Transition>
@@ -285,8 +287,8 @@ onBeforeUnmount(() => {
             type="button"
             class="setup-btn setup-btn--small"
             :style="{ color: topIconColor }"
-            :title="isCurrentWallpaperFavorite ? '当前壁纸已收藏' : '收藏当前壁纸'"
-            :aria-label="isCurrentWallpaperFavorite ? '当前壁纸已收藏' : '收藏当前壁纸'"
+            :title="isCurrentWallpaperFavorite ? t('app.favorited') : t('app.favorite')"
+            :aria-label="isCurrentWallpaperFavorite ? t('app.favorited') : t('app.favorite')"
             :disabled="isCurrentWallpaperFavorite"
             @click="favoriteCurrentWallpaper"
           >
@@ -299,8 +301,8 @@ onBeforeUnmount(() => {
             type="button"
             class="setup-btn"
             :style="{ color: topIconColor }"
-            :title="showQuickLinks ? '隐藏快捷访问' : '显示快捷访问'"
-            :aria-label="showQuickLinks ? '隐藏快捷访问' : '显示快捷访问'"
+            :title="showQuickLinks ? t('app.hideLinks') : t('app.showLinks')"
+            :aria-label="showQuickLinks ? t('app.hideLinks') : t('app.showLinks')"
             :aria-pressed="showQuickLinks"
             @click="toggleQuickLinks"
           >
@@ -313,7 +315,7 @@ onBeforeUnmount(() => {
             type="button"
             class="setup-btn"
             :style="{ color: topIconColor }"
-            title="设置"
+            :title="t('app.settings')"
             @click="onSetup"
           >
             <Icon icon="fluent:settings-24-filled" class="text-[22px]" />
@@ -336,8 +338,8 @@ onBeforeUnmount(() => {
               :class="{ 'wallpaper-nav-btn--inactive': !canRestorePreviousWallpaper }"
               :style="{ color: topIconColor }"
               :disabled="!canRestorePreviousWallpaper || isRefreshingWallpaper || isRestoringWallpaper"
-              :title="canRestorePreviousWallpaper ? '上一张壁纸' : '换一张后可回到上一张'"
-              aria-label="上一张壁纸"
+              :title="canRestorePreviousWallpaper ? t('app.previousWallpaper') : t('app.previousWallpaperDisabled')"
+              :aria-label="t('app.previousWallpaper')"
               @click="onRestoreWallpaper"
             >
               <Icon
@@ -352,8 +354,8 @@ onBeforeUnmount(() => {
               class="setup-btn wallpaper-nav-btn wallpaper-refresh-btn"
               :style="{ color: topIconColor }"
               :disabled="isRefreshingWallpaper || isRestoringWallpaper"
-              title="换一张壁纸"
-              aria-label="换一张壁纸"
+              :title="t('app.nextWallpaper')"
+              :aria-label="t('app.nextWallpaper')"
               :aria-expanded="wallpaperControlsExpanded"
               @click="onRefreshWallpaper($event)"
             >
@@ -371,7 +373,7 @@ onBeforeUnmount(() => {
         <Dialog
           :show="setup.show"
           :select="setUpSelect"
-          title="设置"
+          :title="t('settings.title')"
           @close="setup.show = false"
         />
       </div>
@@ -424,7 +426,13 @@ onBeforeUnmount(() => {
   z-index: 200;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 15px;
+  background: rgba(20, 20, 22, 0.16);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
 }
 
 #wallpaper-controls {
@@ -529,11 +537,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   box-shadow: none;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
 }
 
 #wallpaper-controls .setup-btn.wallpaper-nav-btn {
@@ -552,7 +560,8 @@ onBeforeUnmount(() => {
 }
 
 .setup-btn:hover:not(:disabled) {
-  opacity: 0.7;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.14);
   transform: scale(1.08);
 }
 

@@ -13,8 +13,8 @@
           <Icon icon="fluent:arrow-download-24-regular" />
         </span>
         <span class="transfer-card-text">
-          <strong>{{ isExporting ? '正在导出' : '导出配置' }}</strong>
-          <span>保存 JSON</span>
+          <strong>{{ isExporting ? t('transfer.exporting') : t('transfer.export') }}</strong>
+          <span>{{ t('transfer.saveJson') }}</span>
         </span>
       </button>
 
@@ -33,8 +33,8 @@
           <Icon icon="fluent:arrow-upload-24-regular" />
         </span>
         <span class="transfer-card-text">
-          <strong>导入配置</strong>
-          <span>{{ pendingConfig ? selectedFileName : '选择或拖入 JSON' }}</span>
+          <strong>{{ t('transfer.import') }}</strong>
+          <span>{{ pendingConfig ? selectedFileName : t('transfer.chooseJson') }}</span>
         </span>
       </button>
 
@@ -47,11 +47,11 @@
         </div>
         <div class="upload-actions">
           <button type="button" class="settings-btn settings-btn--ghost transfer-btn" :disabled="isImporting" @click="clearSelection">
-            取消
+            {{ t('transfer.cancel') }}
           </button>
           <button type="button" class="settings-btn settings-btn--primary transfer-btn" :disabled="isImporting" @click="confirmImport">
             <Icon icon="fluent:checkmark-20-regular" />
-            {{ isImporting ? '正在导入' : '确认导入' }}
+            {{ isImporting ? t('transfer.importing') : t('transfer.confirm') }}
           </button>
         </div>
       </div>
@@ -63,6 +63,7 @@
 import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useNotification } from '@/composables/useNotification'
+import { useI18n } from '@/i18n'
 import {
   createConfigExport,
   importConfig,
@@ -71,6 +72,7 @@ import {
 } from '@/utils/configTransfer'
 
 const { success, error } = useNotification()
+const { t } = useI18n()
 const fileInput = ref<HTMLInputElement | null>(null)
 const selectedFileName = ref('')
 const pendingConfig = ref<ConfigFile | null>(null)
@@ -90,9 +92,9 @@ const exportSettings = async () => {
     link.download = `LaunchPad-config-${new Date().toISOString().slice(0, 10)}.json`
     link.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
-    success('导出成功', '配置文件已开始下载')
+    success(t('transfer.exportDone'), t('transfer.exportDoneDetail'))
   } catch (reason) {
-    error('导出失败', reason instanceof Error ? reason.message : String(reason))
+    error(t('transfer.exportFailed'), reason instanceof Error ? reason.message : String(reason))
   } finally {
     isExporting.value = false
   }
@@ -119,7 +121,7 @@ const prepareImportFile = async (file: File | undefined) => {
     pendingConfig.value = config
     selectedFileName.value = file.name
   } catch (reason) {
-    error('无法导入', reason instanceof Error ? reason.message : String(reason))
+    error(t('transfer.cannotImport'), reason instanceof Error ? reason.message : String(reason))
     if (fileInput.value) fileInput.value.value = ''
   }
 }
@@ -135,10 +137,10 @@ const confirmImport = async () => {
   isImporting.value = true
   try {
     await importConfig(pendingConfig.value)
-    success('导入成功', '基础、背景、搜索引擎和快捷访问已恢复')
+    success(t('transfer.importDone'), t('transfer.importDoneDetail'))
     clearSelection()
   } catch (reason) {
-    error('导入失败', reason instanceof Error ? reason.message : String(reason))
+    error(t('transfer.importFailed'), reason instanceof Error ? reason.message : String(reason))
   } finally {
     isImporting.value = false
   }

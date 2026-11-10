@@ -2,28 +2,48 @@
   <div id="basic" class="settings-page">
     <div class="space-y-6">
 
+      <section class="setting-section">
+        <div class="section-head">
+          <h3 class="section-title">{{ t('basic.languageTitle') }}</h3>
+          <p class="section-desc">{{ t('basic.languageDesc') }}</p>
+        </div>
+        <div class="language-options" role="radiogroup" :aria-label="t('basic.languageTitle')">
+          <button
+            v-for="option in localeOptions"
+            :key="option.id"
+            type="button"
+            class="language-option"
+            role="radio"
+            :aria-checked="preference === option.id"
+            @click="setLocalePreference(option.id)"
+          >{{ option.native }}</button>
+        </div>
+      </section>
+
+      <div class="divider" />
+
       <!-- 时间显示设置 -->
       <section class="setting-section">
         <div class="section-head">
-          <h3 class="section-title">时间显示</h3>
-          <p class="section-desc">自定义时间和日期的显示方式</p>
+          <h3 class="section-title">{{ t('basic.timeTitle') }}</h3>
+          <p class="section-desc">{{ t('basic.timeDesc') }}</p>
         </div>
         <div class="toggle-list">
           <label class="toggle-row">
             <input type="checkbox" v-model="showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">显示时间</span>
+            <span class="toggle-label">{{ t('basic.showTime') }}</span>
           </label>
           <label class="toggle-row ml-6" :class="{ 'opacity-40': !showTimeValue }">
             <input type="checkbox" v-model="showSecondsValue" :disabled="!showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">显示秒数</span>
+            <span class="toggle-label">{{ t('basic.showSeconds') }}</span>
           </label>
           <label class="toggle-row ml-6" :class="{ 'opacity-40': !showTimeValue }">
             <input type="checkbox" v-model="use24HourValue" :disabled="!showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">24小时制</span>
+            <span class="toggle-label">{{ t('basic.hour24') }}</span>
           </label>
           <label class="toggle-row">
             <input type="checkbox" v-model="showDateValue" class="toggle-checkbox" />
-            <span class="toggle-label">显示日期</span>
+            <span class="toggle-label">{{ t('basic.showDate') }}</span>
           </label>
         </div>
       </section>
@@ -33,8 +53,8 @@
       <!-- 字体设置 -->
       <section class="setting-section">
         <div class="section-head">
-          <h3 class="section-title">时钟字体</h3>
-          <p class="section-desc">选择时间和日期的显示字体</p>
+          <h3 class="section-title">{{ t('basic.fontTitle') }}</h3>
+          <p class="section-desc">{{ t('basic.fontDesc') }}</p>
         </div>
         <div class="font-grid">
           <button
@@ -55,13 +75,13 @@
       <!-- 字体大小 & 粗细 -->
       <section class="setting-section">
         <div class="section-head">
-          <h3 class="section-title">字体大小 &amp; 粗细</h3>
-          <p class="section-desc">调整时间数字的视觉重量</p>
+          <h3 class="section-title">{{ t('basic.sizeTitle') }}</h3>
+          <p class="section-desc">{{ t('basic.sizeDesc') }}</p>
         </div>
 
         <!-- 大小滑块 -->
         <div class="slider-row">
-          <span class="slider-label">大小</span>
+          <span class="slider-label">{{ t('basic.size') }}</span>
           <input
             type="range"
             class="size-slider"
@@ -74,7 +94,7 @@
 
         <!-- 粗细滑块 -->
         <div class="slider-row">
-          <span class="slider-label">粗细</span>
+          <span class="slider-label">{{ t('basic.weight') }}</span>
           <input
             type="range"
             class="size-slider"
@@ -88,7 +108,7 @@
         <!-- 恢复默认 -->
         <button class="reset-btn" @click="resetToDefaults">
           <Icon icon="fluent:arrow-reset-24-regular" class="text-xs" />
-          恢复默认
+          {{ t('basic.reset') }}
         </button>
 
         <!-- 实时预览 -->
@@ -110,18 +130,18 @@
       <!-- 主色调设置 -->
       <section class="setting-section">
         <div class="section-head">
-          <h3 class="section-title">主色调</h3>
-          <p class="section-desc">设置时间和图标的颜色</p>
+          <h3 class="section-title">{{ t('basic.colorTitle') }}</h3>
+          <p class="section-desc">{{ t('basic.colorDesc') }}</p>
         </div>
 
         <!-- 自定义颜色开关 -->
         <div class="toggle-list">
           <label class="toggle-row">
             <input type="checkbox" v-model="useCustomColorValue" class="toggle-checkbox" @change="onCustomColorToggle" />
-            <span class="toggle-label">使用自定义颜色</span>
+            <span class="toggle-label">{{ t('basic.customColor') }}</span>
           </label>
           <p class="custom-color-hint" v-if="!useCustomColorValue">
-            当前使用自适应颜色：有壁纸/暗色模式显示白色，亮色模式显示深灰
+            {{ t('basic.adaptiveColor') }}
           </p>
         </div>
 
@@ -132,7 +152,7 @@
               class="color-swatch"
               :style="{ backgroundColor: themeColorInput }"
               @click="togglePicker"
-              title="点击选择颜色"
+              :title="t('basic.pickColor')"
             />
 
             <!-- 气泡框 -->
@@ -217,9 +237,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useNotification } from "@/composables/useNotification";
+import { useI18n } from "@/i18n";
 import { useWallpaper } from "@/composables/useWallpaper";
 
 const { success, error } = useNotification();
+const { t, preference, localeOptions, setLocalePreference } = useI18n();
 const {
   themeColor, showTime, showSeconds, showDate, use24Hour,
   clockFont, clockFontSize, clockFontWeight, useCustomColor,
@@ -249,10 +271,16 @@ async function selectFont(font: string) {
 const clockFontSizeValue = ref(clockFontSize.value || 96);
 const clockFontWeightValue = ref(clockFontWeight.value || 700);
 
-const WEIGHT_LABELS: Record<number, string> = {
-  300: '细', 400: '常规', 500: '中等', 600: '半粗', 700: '粗'
-};
-const weightLabel = computed(() => WEIGHT_LABELS[clockFontWeightValue.value] ?? String(clockFontWeightValue.value));
+const weightLabel = computed(() => {
+  const labels: Record<number, string> = {
+    300: t('basic.weightThin'),
+    400: t('basic.weightRegular'),
+    500: t('basic.weightMedium'),
+    600: t('basic.weightSemibold'),
+    700: t('basic.weightBold'),
+  };
+  return labels[clockFontWeightValue.value] ?? String(clockFontWeightValue.value);
+});
 
 let sizeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 function onFontSizeChange() {
@@ -277,7 +305,7 @@ async function resetToDefaults() {
     updateClockFontSize(DEFAULTS.size),
     updateClockFontWeight(DEFAULTS.weight),
   ]);
-  success('已恢复', '字体设置已恢复为默认值');
+  success(t('basic.restored'), t('basic.restoredDetail'));
 }
 
 // ─── 主色调 ───────────────────────────────────────────
@@ -445,7 +473,7 @@ function selectThemePresetColor(color: string) {
 function validateAndApplyThemeColor() {
   const colorRegex = /^#([0-9A-F]{3}){1,2}$/i;
   if (!colorRegex.test(themeColorInput.value)) {
-    error("颜色格式错误", "请输入有效的十六进制颜色代码");
+    error(t("basic.invalidColor"), t("basic.invalidColorDetail"));
     themeColorInput.value = themeColor.value || "#495057";
     updateThemeColorFromHex(themeColorInput.value);
     return;
@@ -458,13 +486,13 @@ function validateAndApplyThemeColor() {
 async function withLoading(fn: () => Promise<void>, onError: () => void) {
   if (isLoading.value) return;
   isLoading.value = true;
-  try { await fn(); } catch (e) { error("更新失败", e?.toString()); onError(); } finally { isLoading.value = false; }
+  try { await fn(); } catch (e) { error(t("basic.updateFailed"), e?.toString()); onError(); } finally { isLoading.value = false; }
 }
 
-watch(showTimeValue, (v) => withLoading(async () => { await updateShowTime(v); success("已更新", `时间显示已${v ? "开启" : "关闭"}`); }, () => { showTimeValue.value = !v; }));
-watch(showSecondsValue, (v) => { if (!showTimeValue.value) return; withLoading(async () => { await updateShowSeconds(v); success("已更新", `秒数已${v ? "开启" : "关闭"}`); }, () => { showSecondsValue.value = !v; }); });
-watch(showDateValue, (v) => withLoading(async () => { await updateShowDate(v); success("已更新", `日期显示已${v ? "开启" : "关闭"}`); }, () => { showDateValue.value = !v; }));
-watch(use24HourValue, (v) => { if (!showTimeValue.value) return; withLoading(async () => { await updateUse24Hour(v); success("已更新", `已切换为${v ? "24小时制" : "12小时制"}`); }, () => { use24HourValue.value = !v; }); });
+watch(showTimeValue, (v) => withLoading(async () => { await updateShowTime(v); success(t("basic.updated"), t(v ? "basic.timeOn" : "basic.timeOff")); }, () => { showTimeValue.value = !v; }));
+watch(showSecondsValue, (v) => { if (!showTimeValue.value) return; withLoading(async () => { await updateShowSeconds(v); success(t("basic.updated"), t(v ? "basic.secondsOn" : "basic.secondsOff")); }, () => { showSecondsValue.value = !v; }); });
+watch(showDateValue, (v) => withLoading(async () => { await updateShowDate(v); success(t("basic.updated"), t(v ? "basic.dateOn" : "basic.dateOff")); }, () => { showDateValue.value = !v; }));
+watch(use24HourValue, (v) => { if (!showTimeValue.value) return; withLoading(async () => { await updateUse24Hour(v); success(t("basic.updated"), t(v ? "basic.switched24" : "basic.switched12")); }, () => { use24HourValue.value = !v; }); });
 
 watch(themeColorInput, async (v) => {
   const colorRegex = /^#([0-9A-F]{3}){1,2}$/i;
@@ -496,40 +524,61 @@ onBeforeUnmount(() => {
 <style scoped>
 #basic {
   /* settings-page 已处理滚动与内边距 */
-  padding-bottom: 28px;
+  padding: 20px 24px 32px;
 }
+
+#basic > div { width: 100%; max-width: 760px; margin: 0 auto; }
 
 /* 分区 */
 .setting-section { display: flex; flex-direction: column; gap: 12px; }
-.section-head { display: flex; flex-direction: column; gap: 2px; }
-.section-title { font-size: 13px; font-weight: 600; color: var(--ui-text); }
-.section-desc  { font-size: 11px; color: var(--ui-text-muted); }
+.language-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.language-option { min-height: 36px; padding: 0 14px; border: 1px solid rgba(60, 60, 67, 0.16); border-radius: 10px; background: #fff; color: #1f2937; cursor: pointer; font: inherit; font-size: 13px; }
+.language-option[aria-checked="true"] { border-color: #007aff; color: #007aff; background: rgba(0, 122, 255, 0.08); }
+.language-option:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  .language-option { border-color: rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04); color: #f5f5f7; }
+  .language-option[aria-checked="true"] { border-color: #0a84ff; color: #0a84ff; background: rgba(10, 132, 255, 0.16); }
+}
+.section-head { display: flex; flex-direction: column; gap: 4px; }
+.section-title { font-size: 14px; font-weight: 600; color: var(--ui-text); }
+.section-desc  { font-size: 12px; color: var(--ui-text-muted); }
 
 .divider {
   height: 1px;
-  background: var(--ui-border);
+  background: rgba(60, 60, 67, 0.12);
 }
 
 /* 切换开关列表 */
-.toggle-list { display: flex; flex-direction: column; gap: 8px; }
+.toggle-list { display: flex; flex-direction: column; gap: 9px; }
 
 .toggle-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   user-select: none;
 }
 
 .toggle-checkbox {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--ui-accent);
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  border: 1.5px solid rgba(60, 60, 67, 0.36);
+  border-radius: 5px;
+  background: #fff;
   cursor: pointer;
   flex-shrink: 0;
+  display: grid;
+  place-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
-.toggle-label { font-size: 13px; color: var(--ui-text-secondary); }
+.toggle-checkbox:checked { border-color: var(--ui-accent); background: var(--ui-accent); }
+.toggle-checkbox:checked::after { content: ""; width: 8px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translateY(-1px); }
+.toggle-checkbox:focus-visible { outline: 3px solid rgba(0, 122, 255, 0.22); outline-offset: 2px; }
+.toggle-checkbox:disabled { cursor: not-allowed; opacity: 0.55; }
+.toggle-label { font-size: 14px; color: var(--ui-text-secondary); }
 
 /* 大小滑块行 */
 .slider-row {
@@ -539,7 +588,7 @@ onBeforeUnmount(() => {
 }
 
 .slider-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #6b7280;
   width: 28px;
   flex-shrink: 0;
@@ -547,13 +596,35 @@ onBeforeUnmount(() => {
 
 .size-slider {
   flex: 1;
-  accent-color: #2563eb;
+  accent-color: var(--ui-accent);
   cursor: pointer;
   height: 4px;
+  appearance: none;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.18);
+}
+
+.size-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+}
+
+.size-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
 }
 
 .slider-value {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
   font-family: ui-monospace, monospace;
   width: 36px;
@@ -567,12 +638,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
+  height: 30px;
   padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(60, 60, 67, 0.16);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7280;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -588,9 +659,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 60px;
+  height: 64px;
   background: rgba(0,0,0,0.03);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid rgba(0,0,0,0.05);
 }
@@ -599,7 +670,7 @@ onBeforeUnmount(() => {
 .font-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .font-card {
@@ -607,10 +678,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 6px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(0,0,0,0.08);
-  background: rgba(0,0,0,0.02);
+  padding: 12px 8px;
+  border-radius: 11px;
+  border: 1px solid rgba(60, 60, 67, 0.14);
+  background: rgba(255, 255, 255, 0.72);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
@@ -626,21 +697,21 @@ onBeforeUnmount(() => {
 }
 
 .font-preview {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 700;
   color: #1f2937;
   line-height: 1;
 }
 
 .font-name {
-  font-size: 10px;
+  font-size: 11px;
   color: #9ca3af;
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
 .font-card--active .font-name {
-  color: #2563eb;
+  color: var(--ui-accent);
 }
 
 /* 颜色行 */
@@ -847,13 +918,17 @@ onBeforeUnmount(() => {
   .font-card:hover { background: rgba(255,255,255,0.06); }
 
   .font-card--active {
-    border-color: #3b82f6;
-    background: rgba(59,130,246,0.1);
+    border-color: rgba(10, 132, 255, 0.72);
+    background: rgba(10, 132, 255, 0.12);
   }
 
   .font-preview { color: #f3f4f6; }
 
-  .font-card--active .font-name { color: #60a5fa; }
+  .font-card--active .font-name { color: #0a84ff; }
+
+  .toggle-checkbox { border-color: rgba(235, 235, 245, 0.34); background: #2c2c2e; }
+  .divider { background: rgba(235, 235, 245, 0.12); }
+  .size-slider { background: rgba(235, 235, 245, 0.20); }
 
   .reset-btn {
     border-color: rgba(255,255,255,0.1);
@@ -912,5 +987,10 @@ input:disabled { cursor: not-allowed; }
     background: rgba(255,255,255,0.04);
     border-left-color: rgba(255,255,255,0.1);
   }
+}
+
+@media (max-width: 560px) {
+  #basic { padding: 16px 18px 28px; }
+  .font-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

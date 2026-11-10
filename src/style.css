@@ -3,6 +3,36 @@ body,
 #app {
   margin: 0;
   padding: 0;
+  min-width: 320px;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root {
+  --apple-blue: #007aff;
+  --apple-blue-hover: #006ee6;
+  --apple-label: #1d1d1f;
+  --apple-secondary-label: #6e6e73;
+  --apple-separator: rgba(60, 60, 67, 0.16);
+  --apple-surface: rgba(255, 255, 255, 0.78);
+  --apple-surface-solid: #ffffff;
+  --apple-shadow: 0 12px 34px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 3px solid rgba(0, 122, 255, 0.28); outline-offset: 2px; }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --apple-label: #f5f5f7;
+    --apple-secondary-label: #98989d;
+    --apple-separator: rgba(235, 235, 245, 0.18);
+    --apple-surface: rgba(30, 30, 32, 0.78);
+    --apple-surface-solid: #1c1c1e;
+    --apple-shadow: 0 16px 42px rgba(0, 0, 0, 0.3), 0 2px 10px rgba(0, 0, 0, 0.22);
+  }
 }
 
 @import "tailwindcss";

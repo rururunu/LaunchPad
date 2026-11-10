@@ -1,0 +1,56 @@
+<div class="app">
+  <div class="display" id="display" aria-live="polite">0</div>
+  <div class="keys" id="keys"></div>
+</div>
+<style>
+  .app { --bg:#fff; --text:#1d1d1f; --num:rgba(60,60,67,.08); --fn:rgba(60,60,67,.16); --op:#ff9f0a;
+    height:100vh; padding:10px; display:flex; flex-direction:column; gap:8px; overflow:hidden; user-select:none;
+    background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"PingFang SC",sans-serif; container-type:size; }
+  @media (prefers-color-scheme: dark) { .app { --bg:#1c1c1e; --text:#f5f5f7; --num:rgba(235,235,245,.14); --fn:rgba(235,235,245,.26); } }
+  .display { flex:none; text-align:right; padding:2px 6px; font-size:min(14cqw, 15cqh); font-weight:600; line-height:1.1; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .keys { flex:1; min-height:0; display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:1fr; gap:6px; }
+  .keys button { border:0; border-radius:999px; font-size:clamp(12px, 5cqh, 20px); font-weight:500; cursor:pointer; background:var(--num); color:var(--text); font-family:inherit; padding:0; }
+  .keys button:active { filter:brightness(.85); }
+  .keys .fn { background:var(--fn); }
+  .keys .op { background:var(--op); color:#fff; }
+  .keys .op.on { background:#fff; color:var(--op); box-shadow:inset 0 0 0 2px var(--op); }
+  .keys .zero { grid-column:span 2; }
+</style>
+<script>
+  var LAYOUT = [["AC","fn"],["±","fn"],["%","fn"],["÷","op"],["7"],["8"],["9"],["×","op"],["4"],["5"],["6"],["−","op"],["1"],["2"],["3"],["+","op"],["0","zero"],[".",""],["=","op"]];
+  var cur = "0", acc = null, op = null, fresh = true, shown = "0";
+  var box = document.getElementById("display");
+  function fmt(n) {
+    if (!isFinite(n)) return "错误";
+    var s = String(+n.toPrecision(10));
+    return s.length > 12 ? n.toExponential(5) : s;
+  }
+  function calc(a, b, o) { return o === "+" ? a + b : o === "−" ? a - b : o === "×" ? a * b : (b === 0 ? NaN : a / b); }
+  function paint() {
+    box.textContent = shown;
+    Array.prototype.forEach.call(document.querySelectorAll(".op"), function (b) { b.classList.toggle("on", fresh && op === b.textContent && b.textContent !== "="); });
+  }
+  function press(k) {
+    if (shown === "错误" && k !== "AC") return;
+    if (/^[0-9]$/.test(k)) { cur = fresh || cur === "0" ? k : (cur.length < 12 ? cur + k : cur); fresh = false; shown = cur; }
+    else if (k === ".") { if (fresh) { cur = "0."; fresh = false; } else if (cur.indexOf(".") < 0) cur += "."; shown = cur; }
+    else if (k === "AC") { cur = "0"; acc = null; op = null; fresh = true; shown = "0"; }
+    else if (k === "±") { cur = cur.charAt(0) === "-" ? cur.slice(1) : (cur === "0" ? cur : "-" + cur); shown = cur; }
+    else if (k === "%") { cur = fmt(parseFloat(cur) / 100); shown = cur; fresh = false; }
+    else {
+      var v = parseFloat(cur);
+      if (op && !fresh) { acc = calc(acc, v, op); shown = fmt(acc); cur = shown; }
+      else if (acc === null || !op) acc = v;
+      op = k === "=" ? null : k;
+      fresh = true;
+      if (k === "=") { acc = null; }
+    }
+    paint();
+  }
+  LAYOUT.forEach(function (it) {
+    var b = document.createElement("button"); b.type = "button"; b.textContent = it[0]; b.className = it[1] || "";
+    b.onclick = function () { press(it[0]); };
+    document.getElementById("keys").appendChild(b);
+  });
+  paint();
+</script>

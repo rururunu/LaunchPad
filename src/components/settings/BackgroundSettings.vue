@@ -3,26 +3,26 @@
     <!-- 背景类型 -->
     <section class="settings-section">
       <div class="settings-section-head">
-        <h3 class="settings-section-title">背景类型</h3>
-        <p class="settings-section-desc">选择新标签页的背景展示方式</p>
+        <h3 class="settings-section-title">{{ t('background.typeTitle') }}</h3>
+        <p class="settings-section-desc">{{ t('background.typeDesc') }}</p>
       </div>
 
       <div class="settings-toggle-list">
         <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
           <input type="radio" class="settings-toggle-input" value="none" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">不使用壁纸</span>
+          <span class="settings-toggle-label">{{ t('background.none') }}</span>
         </label>
         <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
           <input type="radio" class="settings-toggle-input" value="source" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">使用壁纸源</span>
+          <span class="settings-toggle-label">{{ t('background.source') }}</span>
         </label>
         <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
           <input type="radio" class="settings-toggle-input" value="custom" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">自定义背景图片</span>
+          <span class="settings-toggle-label">{{ t('background.image') }}</span>
         </label>
         <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
           <input type="radio" class="settings-toggle-input" value="color" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">自定义颜色背景</span>
+          <span class="settings-toggle-label">{{ t('background.color') }}</span>
         </label>
       </div>
     </section>
@@ -32,8 +32,8 @@
     <!-- 遮罩 -->
     <section v-if="wallpaperType !== 'none'" class="settings-section">
       <div class="settings-section-head">
-        <h3 class="settings-section-title">背景遮罩</h3>
-        <p class="settings-section-desc">半透明遮罩可改善文字在壁纸上的可读性</p>
+        <h3 class="settings-section-title">{{ t('background.maskTitle') }}</h3>
+        <p class="settings-section-desc">{{ t('background.maskDesc') }}</p>
       </div>
       <label class="settings-toggle-row">
         <input
@@ -42,7 +42,7 @@
           :checked="showMask"
           @change="onMaskChange"
         />
-        <span class="settings-toggle-label">显示背景遮罩</span>
+        <span class="settings-toggle-label">{{ t('background.showMask') }}</span>
       </label>
     </section>
 
@@ -51,22 +51,22 @@
       <hr class="settings-divider" />
       <section class="settings-section">
         <div class="settings-section-head">
-          <h3 class="settings-section-title">自定义图片</h3>
-          <p class="settings-section-desc">粘贴图片链接或从本地上传</p>
+          <h3 class="settings-section-title">{{ t('background.imageTitle') }}</h3>
+          <p class="settings-section-desc">{{ t('background.imageDesc') }}</p>
         </div>
 
         <div class="bg-row">
           <input
             v-model="backgroundUrl"
             class="settings-input"
-            placeholder="请输入图片链接"
+            :placeholder="localImageActive ? t('background.localPlaceholder') : t('background.urlPlaceholder')"
             @blur="validateAndApplyBackgroundUrl"
           />
           <button type="button" class="settings-btn settings-btn--ghost" @click="handleUploadClick">
             <Icon icon="fluent:arrow-upload-24-filled" class="text-sm" />
-            上传
+            {{ t('background.localImage') }}
           </button>
-          <input type="file" @change="fileUp" id="fileInput" class="hidden" accept=".jpg,.png,.jpeg,.gif,.webp,.mp4" />
+          <input type="file" @change="fileUp" id="fileInput" class="hidden" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" />
         </div>
 
         <Transition
@@ -80,18 +80,18 @@
           <div v-if="isUploading" class="upload-card">
             <div class="loading-spinner" />
             <div>
-              <p class="upload-title">正在上传图片...</p>
-              <p class="settings-hint">上传进度：{{ Math.floor(uploadProgress) }}%</p>
+              <p class="upload-title">{{ t('background.processing') }}</p>
+              <p class="settings-hint">{{ t('background.progress', { percent: Math.floor(uploadProgress) }) }}</p>
             </div>
           </div>
         </Transition>
 
         <div v-if="wallpaperUrl || backgroundUrl" class="preview-block">
-          <p class="settings-field-label">当前背景</p>
+          <p class="settings-field-label">{{ t('background.currentBackground') }}</p>
           <img
             :src="wallpaperUrl || backgroundUrl"
             class="preview-img"
-            alt="当前背景图片"
+            :alt="t('background.currentImageAlt')"
             loading="lazy"
           />
           <div class="source-actions">
@@ -106,7 +106,7 @@
                 :icon="isCurrentWallpaperFavorite ? 'fluent:bookmark-24-filled' : 'fluent:bookmark-add-24-regular'"
                 class="text-sm"
               />
-              {{ isSavingFavorite ? '收藏中…' : isCurrentWallpaperFavorite ? '已收藏' : '收藏' }}
+              {{ isSavingFavorite ? t('background.savingFavorite') : isCurrentWallpaperFavorite ? t('background.saved') : t('background.save') }}
             </button>
             <a
               v-if="currentWallpaperUrl"
@@ -116,7 +116,7 @@
               rel="noopener noreferrer"
             >
               <Icon icon="fluent:open-24-regular" class="text-sm" />
-              访问
+              {{ t('background.visit') }}
             </a>
           </div>
         </div>
@@ -128,8 +128,8 @@
       <hr class="settings-divider" />
       <section class="settings-section">
         <div class="settings-section-head">
-          <h3 class="settings-section-title">颜色背景</h3>
-          <p class="settings-section-desc">通过调色盘或预设色选择背景色</p>
+          <h3 class="settings-section-title">{{ t('background.colorTitle') }}</h3>
+          <p class="settings-section-desc">{{ t('background.colorDesc') }}</p>
         </div>
 
         <div class="color-picker-panel">
@@ -183,7 +183,7 @@
         </div>
 
         <div class="color-preview" :style="{ backgroundColor: colorInput }">
-          <span :class="isDarkColor(colorInput) ? 'text-white' : 'text-gray-800'">颜色预览</span>
+          <span :class="isDarkColor(colorInput) ? 'text-white' : 'text-gray-800'">{{ t('background.colorPreview') }}</span>
         </div>
       </section>
     </template>
@@ -194,8 +194,8 @@
       <section class="settings-section">
         <div class="settings-section-head source-section-head">
           <div>
-            <h3 class="settings-section-title">壁纸源</h3>
-            <p class="settings-section-desc">选择来源后可一键换图</p>
+            <h3 class="settings-section-title">{{ t('background.sourceTitle') }}</h3>
+            <p class="settings-section-desc">{{ t('background.sourceDesc') }}</p>
           </div>
           <button
             v-if="hasSourceOptions"
@@ -203,8 +203,8 @@
             class="source-config-btn"
             :class="{ 'source-config-btn--active': sourceOptionsOpen }"
             :aria-expanded="sourceOptionsOpen"
-            aria-label="配置当前壁纸源"
-            title="配置当前壁纸源"
+            :aria-label="t('background.configureSource')"
+            :title="t('background.configureSource')"
             @click="sourceOptionsOpen = !sourceOptionsOpen"
           >
             <Icon icon="fluent:settings-24-regular" />
@@ -225,8 +225,8 @@
               <Icon :icon="sourceIcon(src.id)" class="text-base" />
             </span>
             <span class="source-card-copy">
-              <span class="source-card-name">{{ src.name }}</span>
-              <span class="source-card-desc">{{ src.description }}</span>
+              <span class="source-card-name">{{ t(`background.sources.${src.id}.name`) }}</span>
+              <span class="source-card-desc">{{ t(`background.sources.${src.id}.description`) }}</span>
             </span>
             <Icon
               v-if="wallpaperSourceId === src.id"
@@ -240,7 +240,7 @@
         <div v-if="showSourceOptions" class="source-options">
           <template v-if="showWallhavenOptions">
             <div class="settings-field">
-              <label class="settings-field-label">关键词</label>
+              <label class="settings-field-label">{{ t('background.keyword') }}</label>
               <input
                 v-model="wallhavenQueryInput"
                 class="settings-input"
@@ -250,12 +250,12 @@
               />
             </div>
             <div class="settings-field">
-              <label class="settings-field-label">API Key <span class="opt-tag">可选</span></label>
+              <label class="settings-field-label">API Key <span class="opt-tag">{{ t('background.optional') }}</span></label>
               <input
                 v-model="wallhavenApiKeyInput"
                 class="settings-input"
                 type="password"
-                placeholder="提高请求额度"
+                :placeholder="t('background.quotaPlaceholder')"
                 autocomplete="off"
                 @blur="applyWallhavenApiKey"
               />
@@ -268,17 +268,17 @@
                 :disabled="!wallhavenApiKeyInput.trim()"
                 @change="onWallhavenNsfwChange"
               />
-              <span class="settings-toggle-label">允许 NSFW 内容</span>
+              <span class="settings-toggle-label">{{ t('background.allowNsfw') }}</span>
             </label>
             <p class="settings-hint">
-              来自
+              {{ t('background.from') }}
               <a class="settings-link" href="https://wallhaven.cc/" target="_blank" rel="noopener noreferrer">wallhaven.cc</a>
-              · NSFW 内容需要 API Key
+              · {{ t('background.nsfwNeedsKey') }}
             </p>
           </template>
 
           <div v-else-if="wallpaperSourceId === 'custom'" class="settings-field">
-            <label class="settings-field-label">图片链接</label>
+              <label class="settings-field-label">{{ t('background.imageUrl') }}</label>
             <input
               v-model="sourceUrlInput"
               class="settings-input"
@@ -294,13 +294,13 @@
           <div v-if="wallpaperUrl || sourceUrl" class="source-preview">
             <img
               :src="wallpaperUrl || sourceUrl"
-              alt="当前壁纸"
+              :alt="t('background.currentWallpaper')"
               class="source-preview-img"
               loading="lazy"
             />
             <div class="source-preview-meta">
-              <span class="source-preview-label">当前壁纸</span>
-              <span class="source-preview-res">约 {{ targetResolutionLabel }}</span>
+              <span class="source-preview-label">{{ t('background.currentWallpaper') }}</span>
+              <span class="source-preview-res">{{ t('background.aboutResolution', { resolution: targetResolutionLabel }) }}</span>
             </div>
           </div>
 
@@ -309,7 +309,7 @@
               type="button"
               class="settings-btn source-prev-btn"
               :disabled="!canRestorePreviousWallpaper || isRefreshingSource || isRestoringWallpaper"
-              :title="canRestorePreviousWallpaper ? '上一张壁纸' : '换一张后可回到上一张'"
+              :title="canRestorePreviousWallpaper ? t('background.previous') : t('background.previous')"
               @click="restoreCurrentSource"
             >
               <Icon
@@ -317,7 +317,7 @@
                 class="text-sm"
                 :class="{ 'is-spinning': isRestoringWallpaper }"
               />
-              上一张
+              {{ t('background.previous') }}
             </button>
             <button
               type="button"
@@ -330,7 +330,7 @@
                 class="text-sm"
                 :class="{ 'is-spinning': isRefreshingSource }"
               />
-              {{ isRefreshingSource ? '获取中…' : '换一张' }}
+              {{ isRefreshingSource ? t('background.fetching') : t('background.another') }}
             </button>
             <button
               v-if="currentWallpaperUrl"
@@ -343,7 +343,7 @@
                 :icon="isCurrentWallpaperFavorite ? 'fluent:bookmark-24-filled' : 'fluent:bookmark-add-24-regular'"
                 class="text-sm"
               />
-              {{ isSavingFavorite ? '收藏中…' : isCurrentWallpaperFavorite ? '已收藏' : '收藏' }}
+              {{ isSavingFavorite ? t('background.savingFavorite') : isCurrentWallpaperFavorite ? t('background.saved') : t('background.save') }}
             </button>
             <a
               v-if="currentWallpaperUrl"
@@ -353,7 +353,7 @@
               rel="noopener noreferrer"
             >
               <Icon icon="fluent:open-24-regular" class="text-sm" />
-              访问
+              {{ t('background.visit') }}
             </a>
             <a
               v-if="currentSourceMeta?.homepage"
@@ -362,7 +362,7 @@
               target="_blank"
               rel="noopener noreferrer"
             >
-              官网
+              {{ t('background.homepage') }}
               <Icon icon="fluent:open-24-regular" class="text-xs" />
             </a>
           </div>
@@ -373,8 +373,8 @@
     <hr class="settings-divider" />
     <section class="settings-section">
       <div class="settings-section-head">
-        <h3 class="settings-section-title">收藏的壁纸</h3>
-        <p class="settings-section-desc">{{ favoriteWallpapers.length }} 张</p>
+        <h3 class="settings-section-title">{{ t('background.favoritesTitle') }}</h3>
+        <p class="settings-section-desc">{{ t('background.favoriteCount', { count: favoriteWallpapers.length }) }}</p>
       </div>
 
       <div v-if="favoriteWallpapers.length" class="favorite-grid">
@@ -386,8 +386,8 @@
               <button
                 type="button"
                 class="favorite-action-btn"
-                aria-label="使用这张壁纸"
-                title="使用"
+                :aria-label="t('background.useThis')"
+                :title="t('background.use')"
                 @click="useFavoriteWallpaper(favorite)"
               >
                 <Icon icon="fluent:checkmark-24-regular" />
@@ -397,16 +397,16 @@
                 :href="favorite.url"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="访问原始壁纸"
-                title="访问"
+                :aria-label="t('background.visitOriginal')"
+                :title="t('background.visit')"
               >
                 <Icon icon="fluent:open-24-regular" />
               </a>
               <button
                 type="button"
                 class="favorite-action-btn favorite-action-btn--danger"
-                aria-label="取消收藏"
-                title="取消收藏"
+                :aria-label="t('background.unfavorite')"
+                :title="t('background.unfavorite')"
                 @click="removeFavoriteWallpaper(favorite.url)"
               >
                 <Icon icon="fluent:delete-24-regular" />
@@ -415,20 +415,21 @@
           </div>
         </article>
       </div>
-      <div v-else class="favorite-empty">还没有收藏壁纸</div>
+      <div v-else class="favorite-empty">{{ t('background.noFavorites') }}</div>
     </section>
   </div>
 </template>
 
 <script setup lang='ts'>
 import { useNotification } from "@/composables/useNotification";
+import { useI18n } from "@/i18n";
 import { useWallpaper } from "@/composables/useWallpaper";
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { Icon } from "@iconify/vue";
 import { storage } from "@/utils/storage";
-import COS from "cos-js-sdk-v5";
 import { useDebounceFn } from "@vueuse/core";
 import { loadImage } from "@/utils/imageCache";
+import { isLocalImageUrl, prepareLocalWallpaper } from "@/utils/localWallpaper";
 import {
   WALLPAPER_SOURCES,
   getWallpaperSourceMeta,
@@ -438,6 +439,7 @@ import {
 } from "@/utils/wallpaperSources";
 
 const { success, error } = useNotification();
+const { t } = useI18n();
 const {
   wallpaperType,
   wallpaperUrl,
@@ -497,7 +499,7 @@ const currentFavoriteSourceId = computed<WallpaperSourceId>(() =>
   wallpaperType.value === 'custom' ? 'custom' : wallpaperSourceId.value
 );
 const currentFavoriteSourceName = computed(() =>
-  wallpaperType.value === 'custom' ? '自定义图片' : currentSourceMeta.value.name
+  wallpaperType.value === 'custom' ? t('background.customImage') : t(`background.sources.${wallpaperSourceId.value}.name`)
 );
 
 interface FavoriteWallpaper {
@@ -544,9 +546,9 @@ const selectSource = async (id: WallpaperSourceId) => {
   isRefreshingSource.value = true;
   try {
     await updateWallpaperSource(id);
-    success('壁纸源已切换', getWallpaperSourceMeta(id).name);
+    success(t('background.sourceSwitched'), t(`background.sources.${id}.name`));
   } catch (e) {
-    error('切换壁纸源失败', e?.toString());
+    error(t('background.sourceSwitchFailed'), e?.toString());
   } finally {
     isRefreshingSource.value = false;
   }
@@ -557,9 +559,9 @@ const refreshCurrentSource = async () => {
   isRefreshingSource.value = true;
   try {
     await refreshSourceWallpaper();
-    success('已更新壁纸', currentSourceMeta.value.name);
+    success(t('background.wallpaperUpdated'), t(`background.sources.${wallpaperSourceId.value}.name`));
   } catch (e) {
-    error('获取壁纸失败', e?.toString());
+    error(t('background.wallpaperFailed'), e?.toString());
   } finally {
     isRefreshingSource.value = false;
   }
@@ -569,9 +571,9 @@ const restoreCurrentSource = async () => {
   if (!canRestorePreviousWallpaper.value || isRefreshingSource.value || isRestoringWallpaper.value) return;
   try {
     const restored = await restorePreviousWallpaper();
-    if (restored) success('已恢复上一张壁纸', '');
+    if (restored) success(t('background.restoredPrevious'), '');
   } catch (e) {
-    error('恢复壁纸失败', e?.toString());
+    error(t('background.restoreFailed'), e?.toString());
   }
 };
 
@@ -588,9 +590,9 @@ const bookmarkCurrentWallpaper = async () => {
       savedAt: Date.now(),
     });
     await persistFavoriteWallpapers();
-    success('收藏成功', '当前壁纸已保存到插件');
+    success(t('background.favoriteSaved'), t('background.favoriteSavedDetail'));
   } catch (e) {
-    error('收藏失败', e instanceof Error ? e.message : String(e));
+    error(t('background.favoriteFailed'), e instanceof Error ? e.message : String(e));
   } finally {
     isSavingFavorite.value = false;
   }
@@ -599,9 +601,9 @@ const bookmarkCurrentWallpaper = async () => {
 const useFavoriteWallpaper = async (favorite: FavoriteWallpaper) => {
   try {
     await applySourceWallpaper(favorite.url, favorite.sourceId);
-    success('壁纸已应用', favorite.sourceName);
+    success(t('background.wallpaperApplied'), favorite.sourceName);
   } catch (e) {
-    error('应用壁纸失败', e instanceof Error ? e.message : String(e));
+    error(t('background.applyFailed'), e instanceof Error ? e.message : String(e));
   }
 };
 
@@ -610,10 +612,10 @@ const removeFavoriteWallpaper = async (url: string) => {
   favoriteWallpapers.value = previous.filter((favorite) => favorite.url !== url);
   try {
     await persistFavoriteWallpapers();
-    success('已取消收藏', '壁纸已从插件收藏中移除');
+    success(t('background.unfavorited'), t('background.unfavoritedDetail'));
   } catch (e) {
     favoriteWallpapers.value = previous;
-    error('取消收藏失败', e instanceof Error ? e.message : String(e));
+    error(t('background.unfavoriteFailed'), e instanceof Error ? e.message : String(e));
   }
 };
 
@@ -635,7 +637,7 @@ const onMaskChange = (e: Event) => {
 
 // 本地状态只用于临时存储
 // 使用原始URL而不是缓存的数据URL
-const backgroundUrl = ref(originalWallpaperUrl.value || "");
+const backgroundUrl = ref(isLocalImageUrl(originalWallpaperUrl.value) ? "" : originalWallpaperUrl.value || "");
 const recentImage = ref("");
 const sourceUrlInput = ref(
   sourceUrl.value || "https://picsum.photos/1920/1080"
@@ -690,15 +692,8 @@ const uniquePresets = computed(() => [...new Set(presetColors)]);
 
 // 添加上传状态
 const isUploading = ref(false);
+const localImageActive = computed(() => wallpaperType.value === 'custom' && isLocalImageUrl(originalWallpaperUrl.value));
 const uploadProgress = ref(0);
-
-// 腾讯云COS
-const cos = new COS({
-  SecretId: "123",
-  SecretKey: "123",
-});
-
-
 
 // 获取原始URL
 // 现在我们有originalWallpaperUrl变量，可以直接使用
@@ -745,7 +740,7 @@ const debouncedWatchWallpaperType = useDebounceFn(async (newType: string) => {
   try {
     if (newType === "custom") {
       const url = originalWallpaperUrl.value || backgroundUrl.value;
-      backgroundUrl.value = url;
+      backgroundUrl.value = isLocalImageUrl(url) ? '' : url;
       if (url) await updateWallpaper("custom", url);
     } else if (newType === "source") {
       await updateWallpaper("source");
@@ -757,7 +752,7 @@ const debouncedWatchWallpaperType = useDebounceFn(async (newType: string) => {
       await updateWallpaper("none");
     }
   } catch (e) {
-    error("切换背景失败", e?.toString());
+    error(t("background.switchFailed"), e?.toString());
   } finally {
     isLoading.value = false;
   }
@@ -776,7 +771,7 @@ watch(sourceUrl, (newUrl) => {
 // 监听originalWallpaperUrl变化，同步到背景输入框
 watch(originalWallpaperUrl, (newUrl) => {
   if (newUrl && wallpaperType.value === 'custom') {
-    backgroundUrl.value = newUrl;
+    backgroundUrl.value = isLocalImageUrl(newUrl) ? '' : newUrl;
   }
 });
 
@@ -792,9 +787,9 @@ const validateAndApplyBackgroundUrl = async () => {
     const originalUrl = backgroundUrl.value;
     recentImage.value = originalUrl;
     await updateWallpaper("custom", originalUrl);
-    success("背景已更新", "新的背景图片已应用");
+    success(t("background.backgroundUpdated"), t("background.backgroundUpdatedDetail"));
   } catch (e) {
-    error("应用背景失败", e?.toString());
+    error(t("background.applyBackgroundFailed"), e?.toString());
   } finally {
     isLoading.value = false;
   }
@@ -812,9 +807,9 @@ const applyBackgroundUrl = async () => {
     const originalUrl = backgroundUrl.value;
     recentImage.value = originalUrl;
     await updateWallpaper("custom", originalUrl);
-    success("背景已更新", "新的背景图片已应用");
+    success(t("background.backgroundUpdated"), t("background.backgroundUpdatedDetail"));
   } catch (e) {
-    error("应用背景失败", e?.toString());
+    error(t("background.applyBackgroundFailed"), e?.toString());
   } finally {
     isLoading.value = false;
   }
@@ -828,13 +823,13 @@ const validateAndApplySourceUrl = async () => {
   try {
     const url = sourceUrlInput.value.trim();
     if (!url) {
-      error('请填写图片链接', '');
+      error(t('background.urlRequired'), '');
       return;
     }
     await updateSourceUrl(url);
-    success('自定义壁纸已应用', '');
+    success(t('background.customApplied'), '');
   } catch (e) {
-    error('更新壁纸失败', e?.toString());
+    error(t('background.updateFailed'), e?.toString());
   } finally {
     isLoading.value = false;
   }
@@ -844,158 +839,32 @@ const handleUploadClick = () => {
   document.getElementById("fileInput")?.click();
 };
 
-const fileUp = async (event: any) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  if (!file.type.startsWith('image/')) {
-    error('上传失败', '请选择图片文件');
-    return;
-  }
-  
-  // 计算文件大小（仅用于日志）
-  const fileSizeMB = file.size / (1024 * 1024);
-  console.log(`上传图片大小: ${fileSizeMB.toFixed(2)}MB`);
+// 本地图片：只在浏览器内处理并保存到插件存储，不上传到任何服务器
+const fileUp = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || isUploading.value) return;
 
   isUploading.value = true;
-  uploadProgress.value = 0;
-  let progressInterval: number | undefined;
-
+  uploadProgress.value = 30;
   try {
-    // 模拟上传进度
-    progressInterval = window.setInterval(() => {
-      if (uploadProgress.value < 90) {
-        uploadProgress.value = Math.min(90, uploadProgress.value + Math.floor(Math.random() * 10));
-      }
-    }, 200);
-    
-    // 不再限制图片大小，直接使用原始文件上传
-    let fileToUpload = file;
-
-    // 上传到腾讯云
-    cos.putObject(
-      {
-        Bucket: "ba-1324114126",
-        Region: "ap-guangzhou",
-        Key: `wallpapers/${Date.now()}_${file.name}`,
-        StorageClass: "STANDARD",
-        Body: fileToUpload,
-      },
-      async (err, data) => {
-        if (progressInterval) {
-          clearInterval(progressInterval);
-        }
-
-        if (err) {
-          isUploading.value = false;
-          uploadProgress.value = 0;
-          error('上传失败', err.message || '上传文件失败');
-          return;
-        }
-
-        if (data.statusCode === 200 && data.Location) {
-          const url = "https://" + data.Location;
-          try {
-            // 更新本地状态
-            recentImage.value = url;
-            backgroundUrl.value = url;
-            // 更新壁纸 (会自动缓存图片)
-            await updateWallpaper('custom', url);
-            
-            // 完成上传
-            uploadProgress.value = 100;
-            setTimeout(() => {
-              isUploading.value = false;
-              uploadProgress.value = 0;
-            }, 500);
-            
-            success('上传成功', '新的背景图片已应用');
-          } catch (storageError) {
-            isUploading.value = false;
-            uploadProgress.value = 0;
-            error('上传失败', '保存图片URL失败，请重试');
-          }
-        } else {
-          isUploading.value = false;
-          uploadProgress.value = 0;
-          error('上传失败', '上传文件失败');
-        }
-      }
-    );
+    const dataUrl = await prepareLocalWallpaper(file);
+    uploadProgress.value = 80;
+    await storage.remove("customWallpaper");
+    recentImage.value = dataUrl;
+    backgroundUrl.value = '';
+    await updateWallpaper('custom', dataUrl);
+    uploadProgress.value = 100;
+    success(t('background.localSet'), file.name);
   } catch (e) {
-    if (progressInterval) {
-      clearInterval(progressInterval);
-    }
-    isUploading.value = false;
-    uploadProgress.value = 0;
-    error('上传失败', e?.toString() || '未知错误，请重试');
+    error(t('background.localFailed'), e instanceof Error ? e.message : String(e));
+  } finally {
+    setTimeout(() => {
+      isUploading.value = false;
+      uploadProgress.value = 0;
+    }, 300);
   }
-};
-
-
-
-// 压缩图片文件
-const compressImageFile = (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('无法创建canvas上下文'));
-          return;
-        }
-        
-        // 设置canvas尺寸，保持原始宽高比
-        const MAX_WIDTH = 1920;
-        const MAX_HEIGHT = 1080;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        
-        // 绘制图片到canvas
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // 转换为Blob
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error('无法创建Blob'));
-            return;
-          }
-          // 创建新的File对象
-          const compressedFile = new File([blob], file.name, {
-            type: 'image/jpeg',
-            lastModified: Date.now()
-          });
-          resolve(compressedFile);
-        }, 'image/jpeg', 0.7); // 压缩质量0.7
-      };
-      img.onerror = () => {
-        reject(new Error('图片加载失败'));
-      };
-    };
-    reader.onerror = () => {
-      reject(new Error('文件读取失败'));
-    };
-  });
 };
 
 // 获取缓存的图片URL
@@ -1054,7 +923,7 @@ const validateColorInput = () => {
   const colorRegex = /^#([0-9A-F]{3}){1,2}$/i;
   if (!colorRegex.test(colorInput.value)) {
     // 如果不是有效的十六进制颜色，重置为默认值
-    error('颜色格式错误', '请输入有效的十六进制颜色代码（例如 #3498db）');
+    error(t('background.colorInvalid'), t('background.colorInvalidDetail'));
     colorInput.value = backgroundColor.value || '#3498db';
     updateColorFromHex(colorInput.value);
     return;
@@ -1308,9 +1177,9 @@ watch(colorInput, async (newValue) => {
       await updateWallpaper('color');
     }
 
-    success('背景颜色已更新', '新的背景颜色已应用');
+    success(t('background.colorUpdated'), t('background.colorUpdatedDetail'));
   } catch (e) {
-    error('应用背景颜色失败', e?.toString());
+    error(t('background.colorFailed'), e?.toString());
     // 如果出错，还原设置
     colorInput.value = backgroundColor.value;
   } finally {

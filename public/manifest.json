@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LaunchPad",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "LaunchPad — 想去哪就去哪",
   "chrome_url_overrides": {
     "newtab": "index.html"
@@ -34,11 +34,20 @@
         "<all_urls>"
       ],
       "js": [
-        "ai-prompt-inject.js",
-        "content-script.js"
+        "ai-prompt-inject.js"
       ],
       "run_at": "document_end",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
     }
   ],
   "background": {
@@ -84,6 +93,18 @@
     "https://raw.githubusercontent.com/rururunu/init-tab/*",
     "https://hn.algolia.com/*"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "overlay.html",
+        "quick-access.html",
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "action": {
     "default_title": "LaunchPad",
     "default_icon": {
@@ -92,5 +113,14 @@
       "48": "icon-48.png",
       "128": "icon-128.png"
     }
+  },
+  "sandbox": {
+    "pages": [
+      "widget-sandbox.html"
+    ]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'",
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-inline'; child-src 'self' about:;"
   }
 }

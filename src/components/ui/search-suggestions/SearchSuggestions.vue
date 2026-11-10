@@ -12,7 +12,7 @@
       class="suggestions-panel dropdown-panel"
     >
       <div class="dropdown-header">
-        <span>上下键选择填充 · 回车执行搜索</span>
+        <span>{{ t('searchDrop.suggestHint') }}</span>
       </div>
       <div
         ref="suggestionsContainer"
@@ -27,7 +27,7 @@
           :class="{ 'dropdown-item--selected': index === selectedIndex }"
         >
           <div class="dropdown-item-text flex-grow min-w-0" v-html="highlightQuery(suggestion)" />
-          <span v-if="index === selectedIndex" class="dropdown-badge">回车搜索</span>
+          <span v-if="index === selectedIndex" class="dropdown-badge">{{ t('searchDrop.suggestEnter') }}</span>
         </div>
       </div>
     </div>
@@ -36,6 +36,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 import {
   hasDefaultEngineFilterPrefix,
   stripDefaultEngineFilterPrefix,

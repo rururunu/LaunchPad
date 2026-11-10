@@ -1,3 +1,4 @@
+import { isValidCustomWidget } from './customWidget'
 import { isChromeStorageAvailable, storage } from '@/utils/storage'
 import { migrateJumpDataEngines } from '@/utils/jumpDataMigration'
 
@@ -39,7 +40,7 @@ export interface ConfigFile {
     basic: JsonObject
     background: JsonObject & { favoriteWallpapers: unknown[] }
     searchEngines: { defaultKey: string; items: unknown[] }
-    quickAccess: { visible: boolean; links: unknown[]; groups: unknown[] }
+    quickAccess: { visible: boolean; links: unknown[]; groups: unknown[]; widgets?: unknown[]; displayStyle?: 'pill' | 'card' }
   }
 }
 
@@ -93,17 +94,22 @@ const isValidQuickLink = (value: unknown) =>
 const isValidQuickGroup = (value: unknown) =>
   isObject(value) && typeof value.id === 'string' && typeof value.label === 'string'
 
+const isValidQuickWidget = (value: unknown) =>
+  isObject(value) && typeof value.id === 'string' && typeof value.type === 'string' && isValidCustomWidget(value) && ['small', 'medium', 'large'].includes(String(value.size))
+
 const isValidFavorite = (value: unknown) => isObject(value) && typeof value.url === 'string'
 
 export async function createConfigExport(): Promise<ConfigFile> {
-  const [rawAppConfig, rawFavorites, rawEngines, rawDefaultKey, rawLinks, rawGroups, rawVisible] = await Promise.all([
+  const [rawAppConfig, rawFavorites, rawEngines, rawDefaultKey, rawLinks, rawGroups, rawWidgets, rawVisible, rawDisplayStyle] = await Promise.all([
     storage.get('appConfig'),
     storage.get('favoriteWallpapers'),
     storage.get('jumpData'),
     storage.get('defaultKey'),
     storage.get('quickLinks'),
     storage.get('quickLinkGroups'),
+    storage.get('quickAccessWidgets'),
     storage.get('showQuickLinks'),
+    storage.get('quickLinkDisplayStyle'),
   ])
 
   const appConfig = parseObject(rawAppConfig)
@@ -128,6 +134,8 @@ export async function createConfigExport(): Promise<ConfigFile> {
         visible: rawVisible !== false && rawVisible !== 'false',
         links: parseArray(rawLinks).filter(isValidQuickLink),
         groups: parseArray(rawGroups).filter(isValidQuickGroup),
+        widgets: parseArray(rawWidgets).filter(isValidQuickWidget),
+        displayStyle: rawDisplayStyle === 'card' ? 'card' : 'pill',
       },
     },
   }
@@ -166,7 +174,13 @@ export function parseConfigFile(text: string): ConfigFile {
   if (!Array.isArray(quickAccess.groups) || !quickAccess.groups.every(isValidQuickGroup)) {
     throw new Error('快捷访问分组格式错误')
   }
+  if (quickAccess.widgets !== undefined && (!Array.isArray(quickAccess.widgets) || !quickAccess.widgets.every(isValidQuickWidget))) {
+    throw new Error('快捷访问小组件数据格式错误')
+  }
   if (typeof quickAccess.visible !== 'boolean') throw new Error('快捷访问显示状态格式错误')
+  if (quickAccess.displayStyle !== undefined && quickAccess.displayStyle !== 'pill' && quickAccess.displayStyle !== 'card') {
+    throw new Error('快捷访问展示方式格式错误')
+  }
 
   return { ...parsed, format: FORMAT } as unknown as ConfigFile
 }
@@ -206,6 +220,8 @@ export async function importConfig(config: ConfigFile): Promise<void> {
     storage.set('defaultKey', defaultKey),
     storage.set('quickLinks', JSON.stringify(config.settings.quickAccess.links)),
     storage.set('quickLinkGroups', JSON.stringify(config.settings.quickAccess.groups)),
+    storage.set('quickAccessWidgets', JSON.stringify(config.settings.quickAccess.widgets ?? [])),
     storage.set('showQuickLinks', String(config.settings.quickAccess.visible)),
+    storage.set('quickLinkDisplayStyle', config.settings.quickAccess.displayStyle ?? 'pill'),
   ])
 }

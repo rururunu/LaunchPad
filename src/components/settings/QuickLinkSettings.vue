@@ -3,10 +3,10 @@
     <section class="settings-section">
       <div class="settings-section-head quick-head">
         <div>
-          <h3 class="settings-section-title">快捷访问</h3>
-          <p class="settings-section-desc">显示在搜索框下方，点击即可打开网站</p>
+          <h3 class="settings-section-title">{{ t('links.title') }}</h3>
+          <p class="settings-section-desc">{{ t('links.desc') }}</p>
         </div>
-        <span class="quick-count">{{ quickLinks.length }} 个</span>
+        <span class="quick-count">{{ t('links.count', { count: quickLinks.length }) }}</span>
       </div>
 
       <div class="quick-toolbar">
@@ -15,28 +15,62 @@
             ref="newGroupInput"
             v-model="newGroupName"
             class="settings-input"
-            aria-label="分组名称"
-            placeholder="分组名称"
+            :aria-label="t('links.groupName')"
+            :placeholder="t('links.groupName')"
             maxlength="24"
             @keydown.enter="createGroup"
             @keydown.esc="cancelCreateGroup"
           />
-          <button type="button" class="quick-toolbar-icon" title="创建" aria-label="创建分组" @click="createGroup">
+          <button type="button" class="quick-toolbar-icon" :title="t('links.create')" :aria-label="t('links.createGroup')" @click="createGroup">
             <Icon icon="fluent:checkmark-20-regular" />
           </button>
-          <button type="button" class="quick-toolbar-icon" title="取消" aria-label="取消创建" @click="cancelCreateGroup">
+          <button type="button" class="quick-toolbar-icon" :title="t('links.cancel')" :aria-label="t('links.cancelCreate')" @click="cancelCreateGroup">
             <Icon icon="fluent:dismiss-20-regular" />
           </button>
         </div>
         <button v-else type="button" class="settings-btn settings-btn--ghost" @click="startCreateGroup">
           <Icon icon="fluent:folder-add-24-regular" />
-          新建分组
+          {{ t('links.newGroup') }}
         </button>
         <button type="button" class="settings-btn settings-btn--primary" @click="addLink">
           <Icon icon="fluent:add-24-regular" />
-          添加网站
+          {{ t('links.addSite') }}
         </button>
       </div>
+
+      <div class="quick-display-row">
+        <div class="quick-display-copy">
+          <span class="quick-display-title">{{ t('links.display') }}</span>
+          <span class="quick-display-desc">{{ t('links.displayDesc') }}</span>
+        </div>
+        <div class="quick-display-switch" role="group" :aria-label="t('links.displayLabel')">
+          <button
+            type="button"
+            class="quick-display-option"
+            :class="{ 'quick-display-option--active': quickLinkDisplayStyle === 'pill' }"
+            :aria-pressed="quickLinkDisplayStyle === 'pill'"
+            @click="selectDisplayStyle('pill')"
+          >
+            <span class="quick-mode-sample quick-mode-sample--pill" aria-hidden="true"><i /><i /><i /></span>
+            {{ t('links.pill') }}
+          </button>
+          <button
+            type="button"
+            class="quick-display-option"
+            :class="{ 'quick-display-option--active': quickLinkDisplayStyle === 'card' }"
+            :aria-pressed="quickLinkDisplayStyle === 'card'"
+            @click="selectDisplayStyle('card')"
+          >
+            <span class="quick-mode-sample quick-mode-sample--card" aria-hidden="true"><i /><i /><i /></span>
+            {{ t('links.card') }}
+          </button>
+        </div>
+      </div>
+
+      <label v-if="quickLinkDisplayStyle === 'card'" class="quick-label-toggle">
+        <span>{{ t('links.showNames') }}</span>
+        <input type="checkbox" :checked="showCardLabels" @change="toggleCardLabels" />
+      </label>
 
       <div class="quick-group-list">
         <section
@@ -53,19 +87,28 @@
               v-if="collection.group"
               v-model="collection.group.label"
               class="quick-group-name"
-              aria-label="分组名称"
+              :aria-label="t('links.groupName')"
               maxlength="24"
               @blur="saveGroupName(collection.group)"
               @keydown.enter="($event.target as HTMLInputElement).blur()"
             />
-            <span v-else class="quick-group-label">未分组</span>
+            <span v-else class="quick-group-label">{{ t('links.ungrouped') }}</span>
             <span class="quick-group-count">{{ collection.links.length }}</span>
+            <select
+              v-if="collection.group && quickLinkDisplayStyle === 'card'"
+              class="settings-select quick-size-switch"
+              :value="collection.group.cardSize ?? 'small'"
+              :aria-label="t('links.groupSize')"
+              @change="setGroupCardSize(collection.group, $event)"
+            >
+              <option v-for="option in cardSizeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
             <button
               v-if="collection.group"
               type="button"
               class="quick-toolbar-icon quick-group-delete"
-              title="删除分组"
-              :aria-label="`删除分组 ${collection.group.label}`"
+              :title="t('links.deleteGroup')"
+              :aria-label="t('links.deleteGroupNamed', { name: collection.group.label })"
               @click="removeGroup(collection.group.id)"
             >
               <Icon icon="fluent:delete-20-regular" />
@@ -100,8 +143,8 @@
               <button
                 type="button"
                 class="quick-card-remove"
-                title="移除"
-                :aria-label="`移除 ${link.label}`"
+                :title="t('links.remove')"
+                :aria-label="t('links.removeNamed', { name: link.label })"
                 @pointerdown.stop
                 @click.stop="removeLink(link.id)"
               >
@@ -109,34 +152,34 @@
               </button>
               <div class="quick-editor-popover" @click.stop>
                 <div class="quick-editor-popover-head">
-                  <span>编辑快捷访问</span>
-                  <button type="button" class="quick-editor-close" title="收起" aria-label="收起编辑" @click="editingId = null">
+                  <span>{{ t('links.editLink') }}</span>
+                  <button type="button" class="quick-editor-close" :title="t('links.collapse')" :aria-label="t('links.collapseEdit')" @click="editingId = null">
                     <Icon icon="fluent:dismiss-20-regular" />
                   </button>
                 </div>
                 <div class="quick-editor-fields">
                   <label class="quick-editor-field">
-                    <span class="quick-editor-label">名称</span>
+                    <span class="quick-editor-label">{{ t('links.name') }}</span>
                     <span class="quick-input-wrap">
                       <Icon icon="fluent:text-field-24-regular" class="quick-input-icon" />
                       <input
                         v-model="link.label"
                         class="settings-input quick-field-input"
-                        aria-label="快捷访问名称"
-                        placeholder="网站名称"
+                        :aria-label="t('links.linkName')"
+                        :placeholder="t('links.siteName')"
                         @blur="saveChanges"
                         @keydown.enter="finishEditing"
                       />
                     </span>
                   </label>
                   <label class="quick-editor-field">
-                    <span class="quick-editor-label">网址</span>
+                    <span class="quick-editor-label">{{ t('links.url') }}</span>
                     <span class="quick-input-wrap">
                       <Icon icon="fluent:link-24-regular" class="quick-input-icon" />
                       <input
                         v-model="link.url"
                         class="settings-input quick-field-input quick-url-input"
-                        aria-label="快捷访问网址"
+                        :aria-label="t('links.linkUrl')"
                         placeholder="https://example.com"
                         spellcheck="false"
                         @blur="saveChanges"
@@ -145,33 +188,46 @@
                     </span>
                   </label>
                 </div>
+                <div v-if="quickLinkDisplayStyle === 'card'" class="quick-card-size-control">
+                  <span class="quick-editor-label">{{ t('links.cardSize') }}</span>
+                  <div class="quick-size-switch" role="group" :aria-label="t('links.cardSize')">
+                    <button
+                      v-for="option in cardSizeOptions"
+                      :key="option.value"
+                      type="button"
+                      :class="{ 'quick-size-switch--active': (link.cardSize ?? 'small') === option.value }"
+                      @click="setLinkCardSize(link, option.value)"
+                    >{{ option.label }}</button>
+                  </div>
+                </div>
                 <div class="quick-editor-actions">
-                  <button type="button" class="quick-icon-btn quick-icon-btn--danger" title="删除" aria-label="删除" @click="removeLink(link.id)">
+                  <button type="button" class="quick-icon-btn quick-icon-btn--danger" :title="t('links.remove')" :aria-label="t('links.remove')" @click="removeLink(link.id)">
                     <Icon icon="fluent:delete-24-regular" />
                   </button>
                   <button type="button" class="quick-editor-done" @click="finishEditing">
                     <Icon icon="fluent:checkmark-20-regular" />
-                    完成
+                    {{ t('links.done') }}
                   </button>
                 </div>
               </div>
             </article>
             <div v-if="!collection.links.length" class="quick-group-empty">
-              拖动快捷访问到这里
+              {{ t('links.dropHere') }}
             </div>
           </div>
         </section>
       </div>
     </section>
 
+    <CustomWidgetSettings />
     <hr class="settings-divider" />
     <section class="settings-section recommendation-section">
       <div class="settings-section-head">
-        <h3 class="settings-section-title">快捷方式推荐</h3>
+        <h3 class="settings-section-title">{{ t('links.recommendations') }}</h3>
       </div>
 
       <div class="recommendation-browser">
-        <div class="recommendation-tabs" role="tablist" aria-label="快捷方式推荐分类" aria-orientation="vertical">
+        <div class="recommendation-tabs" role="tablist" :aria-label="t('links.categories')" aria-orientation="vertical">
           <button
             v-for="tab in recommendationTabs"
             :key="tab.id"
@@ -195,8 +251,8 @@
               v-model="bookmarkQuery"
               type="search"
               class="settings-input bookmark-search"
-              placeholder="搜索收藏夹"
-              aria-label="搜索收藏夹"
+              :placeholder="t('links.searchBookmarks')"
+              :aria-label="t('links.searchBookmarks')"
             />
           </div>
 
@@ -212,14 +268,14 @@
               @click="addSuggestedLink(link)"
             />
             <div v-if="isLoadingBookmarks && activeRecommendationTab === BOOKMARK_TAB" class="recommendation-empty">
-              正在读取收藏夹…
+              {{ t('links.readingBookmarks') }}
             </div>
             <div v-else-if="!visibleRecommendationLinks.length" class="recommendation-empty">
-              {{ activeRecommendationTab === BOOKMARK_TAB ? '没有找到收藏夹网页' : '当前分类暂无推荐' }}
+              {{ activeRecommendationTab === BOOKMARK_TAB ? t('links.noBookmarks') : t('links.noRecommendations') }}
             </div>
           </div>
           <p v-if="hiddenBookmarkCount > 0" class="settings-hint">
-            还有 {{ hiddenBookmarkCount }} 个结果，请输入关键词缩小范围
+            {{ t('links.moreResults', { count: hiddenBookmarkCount }) }}
           </p>
         </div>
       </div>
@@ -228,23 +284,33 @@
 </template>
 
 <script setup lang="ts">
+import CustomWidgetSettings from '@/components/widgets/CustomWidgetSettings.vue';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import QuickLinkChip from '@/components/ui/QuickLinkChip.vue';
 import { useNotification } from '@/composables/useNotification';
+import { useI18n } from '@/i18n';
 import { useQuickLinks } from '@/composables/useQuickLinks';
 import { storage } from '@/utils/storage';
 import type { QuickLink, QuickLinkGroup, QuickLinkRecommendation } from '@/composables/useQuickLinks';
+import type { QuickCardSize, QuickLinkDisplayStyle } from '@/composables/useQuickLinks';
 
 const { error } = useNotification();
+const { t } = useI18n();
 const {
   quickLinks,
   quickLinkGroups,
+  showCardLabels,
+  loadShowCardLabels,
+  saveShowCardLabels,
   recommendations,
   loadQuickLinks,
   loadRecommendations,
   saveQuickLinks,
   saveQuickLinkGroups,
+  quickLinkDisplayStyle,
+  loadQuickLinkDisplayStyle,
+  saveQuickLinkDisplayStyle,
 } = useQuickLinks();
 const editingId = ref<string | null>(null);
 const draggingId = ref<string | null>(null);
@@ -260,16 +326,15 @@ const isLoadingBookmarks = ref(false);
 const BOOKMARK_TAB = 'bookmarks';
 type RecommendationTabId = QuickLinkRecommendation['group'] | typeof BOOKMARK_TAB;
 const activeRecommendationTab = ref<RecommendationTabId>('personal');
+const cardSizeOptions = computed<Array<{ value: QuickCardSize; label: string }>>(() => [
+  { value: 'small', label: t('links.small') },
+  { value: 'medium', label: t('links.medium') },
+  { value: 'large', label: t('links.large') },
+]);
 
-const GROUP_LABELS: Record<QuickLinkRecommendation['group'], string> = {
-  personal: '为你推荐',
-  trending: '国际热门',
-  popular: '常用网站',
-  cn: '国内网站',
-  dev: '开发者',
-  ai: 'AI 工具',
-  media: '内容社区',
-};
+const RECOMMENDATION_GROUPS: QuickLinkRecommendation['group'][] = [
+  'personal', 'trending', 'popular', 'cn', 'dev', 'ai', 'media',
+];
 
 const GROUP_ICONS: Record<QuickLinkRecommendation['group'], string> = {
   personal: 'fluent:person-star-20-regular',
@@ -282,8 +347,8 @@ const GROUP_ICONS: Record<QuickLinkRecommendation['group'], string> = {
 };
 
 const recommendationGroups = computed(() =>
-  (Object.keys(GROUP_LABELS) as QuickLinkRecommendation['group'][])
-    .map((id) => ({ id, label: GROUP_LABELS[id], links: recommendations.value.filter((link) => link.group === id) }))
+  RECOMMENDATION_GROUPS
+    .map((id) => ({ id, label: t(`links.groups.${id}`), links: recommendations.value.filter((link) => link.group === id) }))
     .filter((group) => group.links.length)
 );
 
@@ -296,7 +361,7 @@ const recommendationTabs = computed(() => [
   })),
   {
     id: BOOKMARK_TAB as RecommendationTabId,
-    label: '收藏夹',
+    label: t('links.groups.bookmarks'),
     count: bookmarks.value.length,
     icon: 'fluent:bookmark-multiple-20-regular',
   },
@@ -347,6 +412,26 @@ const startCreateGroup = async () => {
   newGroupInput.value?.focus();
 };
 
+const selectDisplayStyle = async (style: QuickLinkDisplayStyle) => {
+  try {
+    await saveQuickLinkDisplayStyle(style);
+  } catch (reason) {
+    error(t('links.displaySaveFailed'), reason instanceof Error ? reason.message : String(reason));
+  }
+};
+
+const setLinkCardSize = async (link: QuickLink, size: QuickCardSize) => {
+  delete link.gridSize; link.cardSize = size; await saveQuickLinks(quickLinks.value);
+};
+const setGroupCardSize = async (group: QuickLinkGroup, event: Event) => {
+  delete group.gridSize;
+  group.cardSize = (event.target as HTMLSelectElement).value as QuickCardSize;
+  await saveQuickLinkGroups(quickLinkGroups.value);
+};
+const toggleCardLabels = async (event: Event) => {
+  await saveShowCardLabels((event.target as HTMLInputElement).checked);
+};
+
 const cancelCreateGroup = () => {
   isCreatingGroup.value = false;
   newGroupName.value = '';
@@ -364,7 +449,7 @@ const createGroup = async () => {
 };
 
 const saveGroupName = async (group: QuickLinkGroup) => {
-  group.label = group.label.trim() || '未命名分组';
+  group.label = group.label.trim() || t('links.unnamedGroup');
   await saveQuickLinkGroups(quickLinkGroups.value);
 };
 
@@ -406,7 +491,7 @@ const toggleEdit = (id: string, event: Event) => {
 const normalizeUrl = (value: string) => {
   const candidate = /^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
   const parsed = new URL(candidate);
-  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('仅支持 http 或 https 地址');
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(t('links.urlProtocol'));
   return parsed.href;
 };
 
@@ -417,11 +502,11 @@ const saveChanges = async () => {
       label: link.label.trim(),
       url: normalizeUrl(link.url),
     }));
-    if (normalized.some((link) => !link.label)) throw new Error('网站名称不能为空');
+    if (normalized.some((link) => !link.label)) throw new Error(t('links.nameRequired'));
     await saveQuickLinks(normalized);
     return true;
   } catch (e) {
-    error('无法保存快捷访问', e instanceof Error ? e.message : String(e));
+    error(t('links.saveFailed'), e instanceof Error ? e.message : String(e));
     return false;
   }
 };
@@ -436,7 +521,7 @@ const addLink = async () => {
     ...quickLinks.value,
     {
       id,
-      label: '新网站',
+      label: t('links.newSite'),
       url: 'https://example.com/',
     },
   ]);
@@ -564,14 +649,14 @@ const loadBookmarks = async () => {
     bookmarks.value = [...byUrl.values()];
   } catch (reason) {
     bookmarks.value = [];
-    error('无法读取收藏夹', reason instanceof Error ? reason.message : String(reason));
+    error(t('links.bookmarksFailed'), reason instanceof Error ? reason.message : String(reason));
   } finally {
     isLoadingBookmarks.value = false;
   }
 };
 
 onMounted(async () => {
-  await Promise.all([loadQuickLinks(), loadRecommendations(), loadBookmarks()]);
+  await Promise.all([loadQuickLinks(), loadQuickLinkDisplayStyle(), loadShowCardLabels(), loadRecommendations(), loadBookmarks()]);
   if (!recommendationTabs.value.some((tab) => tab.id === activeRecommendationTab.value)) {
     activeRecommendationTab.value = recommendationTabs.value[0]?.id ?? BOOKMARK_TAB;
   }
@@ -603,6 +688,107 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 8px;
 }
+
+.quick-display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+}
+
+.quick-display-copy { display: flex; flex-direction: column; gap: 3px; }
+.quick-display-title { color: var(--ui-text-secondary); font-size: 13px; font-weight: 600; }
+.quick-display-desc { color: var(--ui-text-muted); font-size: 11px; }
+
+.quick-display-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  background: var(--ui-surface-soft);
+}
+
+.quick-display-option {
+  min-width: 82px;
+  height: 32px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--ui-text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quick-display-option:hover { color: var(--ui-text); }
+.quick-display-option--active {
+  color: var(--ui-accent);
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.quick-widgets-section {
+  padding: 12px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+}
+
+.quick-widgets-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.quick-widgets-heading > div { display: flex; flex-direction: column; gap: 3px; }
+.quick-label-toggle { min-height: 34px; margin-top: 8px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--ui-border); border-radius: 8px; color: var(--ui-text-secondary); background: var(--ui-surface); font-size: 12px; }
+.quick-label-toggle input { width: 16px; height: 16px; accent-color: var(--ui-accent); }
+.quick-widget-catalog, .quick-widget-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.quick-widget-add {
+  min-height: 30px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-soft);
+  cursor: pointer;
+  font-size: 11px;
+}
+.quick-widget-add:hover { color: var(--ui-accent); border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+.quick-widget-list { margin-top: 10px; flex-direction: column; gap: 4px; }
+.quick-widget-row { min-height: 34px; display: flex; align-items: center; gap: 3px; padding: 2px 4px 2px 8px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-surface-soft); }
+.quick-widget-row-copy { min-width: 0; display: flex; align-items: center; gap: 7px; flex: 1; color: var(--ui-text-secondary); font-size: 12px; }
+.quick-widget-size { width: 62px; height: 28px; padding-inline: 6px; }
+.quick-widget-remove:hover { color: #dc2626; background: rgba(220, 38, 38, 0.08); }
+.quick-card-size-control { padding: 0 12px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quick-size-switch { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-surface-soft); }
+.quick-size-switch button { min-width: 28px; height: 25px; padding: 0 7px; border: 0; border-radius: 5px; color: var(--ui-text-muted); background: transparent; cursor: pointer; font-size: 11px; }
+.quick-size-switch button:hover { color: var(--ui-text); }
+.quick-size-switch button.quick-size-switch--active { color: var(--ui-accent); background: var(--ui-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.quick-group-head > .quick-size-switch { margin-left: auto; }
+
+.quick-mode-sample { width: 22px; height: 16px; display: flex; align-items: center; justify-content: center; gap: 2px; }
+.quick-mode-sample i { display: block; width: 5px; height: 9px; background: currentColor; opacity: 0.55; }
+.quick-mode-sample--pill i { width: 7px; height: 5px; border-radius: 999px; }
+.quick-mode-sample--card i { width: 6px; height: 8px; border-radius: 2px; }
 
 .quick-create-group {
   min-width: 0;
@@ -1161,6 +1347,8 @@ onMounted(async () => {
   .quick-toolbar > .settings-btn {
     align-self: flex-start;
   }
+
+  .quick-display-row { align-items: flex-start; flex-direction: column; }
 
   .quick-create-group .settings-input {
     width: 100%;
