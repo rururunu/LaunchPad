@@ -1,10 +1,12 @@
 import { isValidCustomWidget } from '@/utils/customWidget';
+import { upgradeStockWidget } from '@/utils/widgetTemplates';
 import { ref } from 'vue';
 import { storage } from '@/utils/storage';
 
 export interface QuickLink {
   iconUrl?: string;
   iconBackground?: string;
+  gridPlacement?: { page: number; col: number; row: number; columns: number };
   gridSize?: { cols: number; rows: number };
   id: string;
   label: string;
@@ -15,6 +17,7 @@ export interface QuickLink {
 }
 
 export interface QuickLinkGroup {
+  gridPlacement?: { page: number; col: number; row: number; columns: number };
   gridSize?: { cols: number; rows: number };
   id: string;
   label: string;
@@ -32,6 +35,7 @@ export interface QuickAccessWidgetInstance {
   maxCols?: number;
   maxRows?: number;
   position?: number;
+  gridPlacement?: { page: number; col: number; row: number; columns: number };
   gridSize?: { cols: number; rows: number };
   id: string;
   type: string;
@@ -65,6 +69,8 @@ const quickAccessWidgets = ref<QuickAccessWidgetInstance[]>([]);
 const showCardLabels = ref(false);
 export type QuickLinkDisplayStyle = 'pill' | 'card';
 const quickLinkDisplayStyle = ref<QuickLinkDisplayStyle>('pill');
+const glassCards = ref(false);
+const cardAlignment = ref<'top' | 'center'>('top');
 const recommendations = ref<QuickLinkRecommendation[]>([]);
 let loaded = false;
 let subscribed = false;
@@ -130,30 +136,38 @@ const saveQuickLinkGroups = async (groups: QuickLinkGroup[] = quickLinkGroups.va
 const parseCardSize = (value: unknown): QuickCardSize =>
   value === 'medium' || value === 'large' ? value : 'small';
 
+const normalizeWidgets = (value: unknown): QuickAccessWidgetInstance[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is QuickAccessWidgetInstance =>
+      Boolean(item && typeof item.id === 'string' && typeof item.type === 'string' && isValidCustomWidget(item))
+    )
+    .map((item) => upgradeStockWidget({ ...item, size: parseCardSize(item.size) }));
+};
+
 const loadQuickAccessWidgets = async () => {
   if (!widgetsLoad) {
     widgetsLoad = (async () => {
       const stored = await storage.get<string | QuickAccessWidgetInstance[]>(WIDGETS_STORAGE_KEY);
       let parsed: unknown;
       try { parsed = typeof stored === 'string' ? JSON.parse(stored) : stored; } catch { parsed = null; }
-      quickAccessWidgets.value = Array.isArray(parsed)
-        ? parsed.filter((item): item is QuickAccessWidgetInstance =>
-            Boolean(item && typeof item.id === 'string' && typeof item.type === 'string' && isValidCustomWidget(item))
-          ).map((item) => ({ ...item, size: parseCardSize(item.size) }))
-        : [];
-      if (stored === null) await storage.set(WIDGETS_STORAGE_KEY, '[]');
+      const widgets = normalizeWidgets(parsed);
+      quickAccessWidgets.value = widgets;
+      const raw = Array.isArray(parsed) ? JSON.stringify(parsed) : null;
+      if (stored === null || (raw !== null && raw !== JSON.stringify(widgets))) {
+        await storage.set(WIDGETS_STORAGE_KEY, JSON.stringify(widgets));
+      }
       storage.onChange(WIDGETS_STORAGE_KEY, (changes) => {
         let next: unknown;
         try {
           const value = changes[WIDGETS_STORAGE_KEY]?.newValue;
           next = typeof value === 'string' ? JSON.parse(value) : value;
         } catch { next = null; }
-        if (Array.isArray(next)) {
-          quickAccessWidgets.value = next
-            .filter((item): item is QuickAccessWidgetInstance =>
-              Boolean(item && typeof item.id === 'string' && typeof item.type === 'string' && isValidCustomWidget(item))
-            )
-            .map((item) => ({ ...item, size: parseCardSize(item.size) }));
+        if (!Array.isArray(next)) return;
+        const widgets = normalizeWidgets(next);
+        quickAccessWidgets.value = widgets;
+        if (JSON.stringify(next) !== JSON.stringify(widgets)) {
+          void storage.set(WIDGETS_STORAGE_KEY, JSON.stringify(widgets));
         }
       });
     })();
@@ -183,6 +197,11 @@ const saveShowCardLabels = async (value: boolean) => {
 const loadQuickLinkDisplayStyle = async () => {
   if (!displayStyleLoad) {
     displayStyleLoad = (async () => {
+      cardAlignment.value = (await storage.get('cardAlignment')) === 'center' ? 'center' : 'top';
+      storage.onChange('cardAlignment', changes => { cardAlignment.value = changes.cardAlignment?.newValue === 'center' ? 'center' : 'top'; });
+      const savedGlass = await storage.get('glassCards');
+      glassCards.value = savedGlass === true || savedGlass === 'true';
+      storage.onChange('glassCards', changes => { glassCards.value = changes.glassCards?.newValue === true || changes.glassCards?.newValue === 'true'; });
       const stored = await storage.get<string>(DISPLAY_STYLE_STORAGE_KEY);
       quickLinkDisplayStyle.value = stored === 'card' ? 'card' : 'pill';
       if (stored === null) await storage.set(DISPLAY_STYLE_STORAGE_KEY, 'pill');
@@ -203,6 +222,20 @@ const saveQuickLinkDisplayStyle = async (style: QuickLinkDisplayStyle) => {
     quickLinkDisplayStyle.value = previous;
     throw error;
   }
+};
+
+const saveCardAlignment = async (value: 'top' | 'center') => {
+  const previous = cardAlignment.value;
+  cardAlignment.value = value;
+  try { await storage.set('cardAlignment', value); }
+  catch (error) { cardAlignment.value = previous; throw error; }
+};
+
+const saveGlassCards = async (enabled: boolean) => {
+  const previous = glassCards.value;
+  glassCards.value = enabled;
+  try { await storage.set('glassCards', enabled); }
+  catch (error) { glassCards.value = previous; throw error; }
 };
 
 const loadQuickLinks = async () => {
@@ -357,6 +390,10 @@ export function useQuickLinks() {
     loadShowCardLabels,
     saveShowCardLabels,
     quickLinkDisplayStyle,
+    glassCards,
+    cardAlignment,
+    saveCardAlignment,
+    saveGlassCards,
     recommendations,
     loadQuickLinks,
     loadRecommendations,

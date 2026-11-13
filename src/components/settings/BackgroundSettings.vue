@@ -1,49 +1,38 @@
 <template>
   <div class="settings-page bg-settings">
     <!-- 背景类型 -->
-    <section class="settings-section">
-      <div class="settings-section-head">
-        <h3 class="settings-section-title">{{ t('background.typeTitle') }}</h3>
-        <p class="settings-section-desc">{{ t('background.typeDesc') }}</p>
-      </div>
-
-      <div class="settings-toggle-list">
-        <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
-          <input type="radio" class="settings-toggle-input" value="none" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">{{ t('background.none') }}</span>
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('background.typeTitle') }}</h3>
+      <div class="apple-group" role="radiogroup" :aria-label="t('background.typeTitle')">
+        <label class="apple-row" :class="{ 'is-disabled': isLoading === true }">
+          <span class="apple-row-label">{{ t('background.none') }}</span>
+          <input type="radio" class="apple-radio" value="none" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
         </label>
-        <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
-          <input type="radio" class="settings-toggle-input" value="source" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">{{ t('background.source') }}</span>
+        <label class="apple-row" :class="{ 'is-disabled': isLoading === true }">
+          <span class="apple-row-label">{{ t('background.source') }}</span>
+          <input type="radio" class="apple-radio" value="source" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
         </label>
-        <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
-          <input type="radio" class="settings-toggle-input" value="custom" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">{{ t('background.image') }}</span>
+        <label class="apple-row" :class="{ 'is-disabled': isLoading === true }">
+          <span class="apple-row-label">{{ t('background.image') }}</span>
+          <input type="radio" class="apple-radio" value="custom" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
         </label>
-        <label class="settings-toggle-row" :class="{ 'is-disabled': isLoading === true }">
-          <input type="radio" class="settings-toggle-input" value="color" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
-          <span class="settings-toggle-label">{{ t('background.color') }}</span>
+        <label class="apple-row" :class="{ 'is-disabled': isLoading === true }">
+          <span class="apple-row-label">{{ t('background.color') }}</span>
+          <input type="radio" class="apple-radio" value="color" v-model="wallpaperType" name="bg-type" :disabled="isLoading === true" />
         </label>
       </div>
+      <p class="apple-footnote">{{ t('background.typeDesc') }}</p>
     </section>
 
-    <hr v-if="wallpaperType !== 'none'" class="settings-divider" />
-
-    <!-- 遮罩 -->
-    <section v-if="wallpaperType !== 'none'" class="settings-section">
-      <div class="settings-section-head">
-        <h3 class="settings-section-title">{{ t('background.maskTitle') }}</h3>
-        <p class="settings-section-desc">{{ t('background.maskDesc') }}</p>
+    <section v-if="wallpaperType !== 'none'" class="apple-section">
+      <h3 class="apple-header">{{ t('background.maskTitle') }}</h3>
+      <div class="apple-group">
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('background.showMask') }}</span>
+          <input type="checkbox" role="switch" class="apple-switch" :checked="showMask" @change="onMaskChange" />
+        </label>
       </div>
-      <label class="settings-toggle-row">
-        <input
-          type="checkbox"
-          class="settings-toggle-input"
-          :checked="showMask"
-          @change="onMaskChange"
-        />
-        <span class="settings-toggle-label">{{ t('background.showMask') }}</span>
-      </label>
+      <p class="apple-footnote">{{ t('background.maskDesc') }}</p>
     </section>
 
     <!-- 自定义图片 -->
@@ -222,7 +211,8 @@
             @click="selectSource(src.id)"
           >
             <span class="source-card-icon" :class="`source-card-icon--${src.id}`">
-              <Icon :icon="sourceIcon(src.id)" class="text-base" />
+              <img v-if="sourceLogo(src.id)" :src="sourceLogo(src.id)" class="source-brand-logo" alt="" width="24" height="24" />
+              <Icon v-else icon="fluent:link-24-regular" class="text-base" />
             </span>
             <span class="source-card-copy">
               <span class="source-card-name">{{ t(`background.sources.${src.id}.name`) }}</span>
@@ -530,15 +520,13 @@ const loadFavoriteWallpapers = async () => {
   }
 };
 
-const SOURCE_ICONS: Record<WallpaperSourceId, string> = {
-  picsum: 'fluent:image-sparkle-24-regular',
-  bing: 'fluent:weather-sunny-24-regular',
-  'wallhaven-random': 'fluent:arrow-shuffle-24-regular',
-  'wallhaven-toplist': 'fluent:fire-24-regular',
-  custom: 'fluent:link-24-regular',
+const SOURCE_LOGOS: Partial<Record<WallpaperSourceId, string>> = {
+  picsum: '/brand-icons/picsum.png',
+  bing: '/brand-icons/bing.png',
+  'wallhaven-random': '/brand-icons/wallhaven.png',
+  'wallhaven-toplist': '/brand-icons/wallhaven.png',
 };
-
-const sourceIcon = (id: WallpaperSourceId) => SOURCE_ICONS[id] || 'fluent:image-24-regular';
+const sourceLogo = (id: WallpaperSourceId) => SOURCE_LOGOS[id];
 
 const selectSource = async (id: WallpaperSourceId) => {
   if (isRefreshingSource.value) return;
@@ -1197,7 +1185,19 @@ onUnmounted(() => {
 
 <style scoped>
 .bg-settings {
-  gap: 20px;
+  gap: 28px;
+}
+
+.bg-settings .settings-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+}
+
+.bg-settings .settings-divider { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  .bg-settings .settings-section { background: #2c2c2e; }
 }
 
 .bg-row {
@@ -1277,6 +1277,8 @@ onUnmounted(() => {
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
+.source-brand-logo { width: 24px; height: 24px; object-fit: contain; }
+
 .source-card-icon {
   width: 28px;
   height: 28px;
@@ -1289,7 +1291,9 @@ onUnmounted(() => {
   background: var(--ui-surface-soft);
 }
 
-.source-card--active .source-card-icon {
+.source-card--active .source-brand-logo { width: 24px; height: 24px; object-fit: contain; }
+
+.source-card-icon {
   color: #2563eb;
   background: rgba(37, 99, 235, 0.12);
 }

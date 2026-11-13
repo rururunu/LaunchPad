@@ -46,6 +46,34 @@ export const WIDGET_TEMPLATES: WidgetTemplate[] = [
   },
 ];
 
+/** 改版前的内置卡片源码指纹。只有一字未改的已添加组件才会换成新布局。 */
+const PREVIOUS_CARD_HASHES: Record<string, number> = {
+  'calendar-todo': 0x88069e2b,
+  'year-progress': 0xc0dcf3b2,
+  calculator: 0xb62a0aad,
+  pomodoro: 0xbc42a13f,
+  countdown: 0xa9b5c606,
+  clock: 0x21a1cdee,
+};
+
+function sourceHash(code: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < code.length; i++) {
+    hash ^= code.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+/** 把仍是旧版内置源码的组件换成当前模板，已手动改过的不动。 */
+export function upgradeStockWidget<T extends { code?: string; popupCode?: string }>(widget: T): T {
+  const code = widget.code?.trim();
+  if (!code) return widget;
+  const template = WIDGET_TEMPLATES.find((item) => PREVIOUS_CARD_HASHES[item.id] === sourceHash(code));
+  if (!template || template.code.trim() === code) return widget;
+  return { ...widget, code: template.code };
+}
+
 export function createWidgetFromTemplate(template: WidgetTemplate, id: string = crypto.randomUUID()): QuickAccessWidgetInstance {
   return {
     id,

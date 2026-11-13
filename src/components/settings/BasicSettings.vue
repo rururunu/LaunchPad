@@ -1,283 +1,363 @@
 <template>
   <div id="basic" class="settings-page">
-    <div class="space-y-6">
-
-      <section class="setting-section">
-        <div class="section-head">
-          <h3 class="section-title">{{ t('basic.languageTitle') }}</h3>
-          <p class="section-desc">{{ t('basic.languageDesc') }}</p>
+    <section class="apple-section">
+      <div class="apple-group"><div class="apple-row">
+        <span class="apple-row-label">{{ t('basic.appearance') }}</span>
+        <AppleMenu
+          :model-value="appearanceMode"
+          :groups="appearanceGroups"
+          :aria-label="t('basic.appearance')"
+          @update:model-value="changeAppearance"
+        />
+      </div></div>
+    </section>
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('basic.glassSearch') }}</h3>
+      <div class="apple-group">
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('basic.glassSearch') }}</span>
+          <input v-model="searchGlassValue" type="checkbox" role="switch" class="apple-switch" />
+        </label>
+      </div>
+      <p class="apple-footnote">{{ t('basic.glassSearchDesc') }}</p>
+    </section>
+    <section class="apple-section">
+      <div class="apple-group">
+        <div class="apple-row">
+          <span class="apple-row-label">{{ t('basic.languageTitle') }}</span>
+          <AppleMenu
+            :model-value="preference"
+            :groups="languageGroups"
+            :aria-label="t('basic.languageTitle')"
+            @update:model-value="onLocaleChange"
+          />
         </div>
-        <div class="language-options" role="radiogroup" :aria-label="t('basic.languageTitle')">
-          <button
-            v-for="option in localeOptions"
-            :key="option.id"
-            type="button"
-            class="language-option"
-            role="radio"
-            :aria-checked="preference === option.id"
-            @click="setLocalePreference(option.id)"
-          >{{ option.native }}</button>
-        </div>
-      </section>
+      </div>
+      <p class="apple-footnote">{{ t('basic.languageDesc') }}</p>
+    </section>
 
-      <div class="divider" />
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('basic.timeTitle') }}</h3>
+      <div class="apple-group">
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('basic.showTime') }}</span>
+          <input v-model="showTimeValue" type="checkbox" role="switch" class="apple-switch" />
+        </label>
+        <label class="apple-row" :class="{ 'is-disabled': !showTimeValue }">
+          <span class="apple-row-label">{{ t('basic.showSeconds') }}</span>
+          <input v-model="showSecondsValue" type="checkbox" role="switch" class="apple-switch" :disabled="!showTimeValue" />
+        </label>
+        <label class="apple-row" :class="{ 'is-disabled': !showTimeValue }">
+          <span class="apple-row-label">{{ t('basic.hour24') }}</span>
+          <input v-model="use24HourValue" type="checkbox" role="switch" class="apple-switch" :disabled="!showTimeValue" />
+        </label>
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('basic.showDate') }}</span>
+          <input v-model="showDateValue" type="checkbox" role="switch" class="apple-switch" />
+        </label>
+      </div>
+      <p class="apple-footnote">{{ t('basic.timeDesc') }}</p>
+    </section>
 
-      <!-- 时间显示设置 -->
-      <section class="setting-section">
-        <div class="section-head">
-          <h3 class="section-title">{{ t('basic.timeTitle') }}</h3>
-          <p class="section-desc">{{ t('basic.timeDesc') }}</p>
-        </div>
-        <div class="toggle-list">
-          <label class="toggle-row">
-            <input type="checkbox" v-model="showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">{{ t('basic.showTime') }}</span>
-          </label>
-          <label class="toggle-row ml-6" :class="{ 'opacity-40': !showTimeValue }">
-            <input type="checkbox" v-model="showSecondsValue" :disabled="!showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">{{ t('basic.showSeconds') }}</span>
-          </label>
-          <label class="toggle-row ml-6" :class="{ 'opacity-40': !showTimeValue }">
-            <input type="checkbox" v-model="use24HourValue" :disabled="!showTimeValue" class="toggle-checkbox" />
-            <span class="toggle-label">{{ t('basic.hour24') }}</span>
-          </label>
-          <label class="toggle-row">
-            <input type="checkbox" v-model="showDateValue" class="toggle-checkbox" />
-            <span class="toggle-label">{{ t('basic.showDate') }}</span>
-          </label>
-        </div>
-      </section>
-
-      <div class="divider" />
-
-      <!-- 字体设置 -->
-      <section class="setting-section">
-        <div class="section-head">
-          <h3 class="section-title">{{ t('basic.fontTitle') }}</h3>
-          <p class="section-desc">{{ t('basic.fontDesc') }}</p>
-        </div>
-        <div class="font-grid">
-          <button
-            v-for="f in fontOptions"
-            :key="f.value"
-            class="font-card"
-            :class="{ 'font-card--active': clockFontValue === f.value }"
-            @click="selectFont(f.value)"
-          >
-            <span class="font-preview" :style="{ fontFamily: `'${f.value}', sans-serif` }">14:32</span>
-            <span class="font-name">{{ f.label }}</span>
-          </button>
-        </div>
-      </section>
-
-      <div class="divider" />
-
-      <!-- 字体大小 & 粗细 -->
-      <section class="setting-section">
-        <div class="section-head">
-          <h3 class="section-title">{{ t('basic.sizeTitle') }}</h3>
-          <p class="section-desc">{{ t('basic.sizeDesc') }}</p>
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('basic.fontTitle') }}</h3>
+      <div class="apple-group">
+        <div class="apple-row">
+          <span class="apple-row-label">{{ t('basic.fontLabel') }}</span>
+          <AppleMenu
+            :model-value="clockFontValue"
+            :groups="clockMenuGroups"
+            :aria-label="t('basic.fontTitle')"
+            sample="14:32"
+            @open="ensureClockFontCatalog"
+            @update:model-value="selectFont"
+          />
         </div>
 
-        <!-- 大小滑块 -->
-        <div class="slider-row">
-          <span class="slider-label">{{ t('basic.size') }}</span>
+        <label class="apple-row apple-row--slider">
+          <span class="apple-row-label">{{ t('basic.size') }}</span>
           <input
-            type="range"
-            class="size-slider"
-            :min="48" :max="160" :step="8"
             v-model.number="clockFontSizeValue"
+            type="range"
+            class="apple-slider"
+            :min="48"
+            :max="160"
+            :step="8"
+            :style="{ '--p': sizeProgress }"
             @input="onFontSizeChange"
           />
-          <span class="slider-value">{{ clockFontSizeValue }}px</span>
-        </div>
+          <span class="apple-value">{{ clockFontSizeValue }}px</span>
+        </label>
 
-        <!-- 粗细滑块 -->
-        <div class="slider-row">
-          <span class="slider-label">{{ t('basic.weight') }}</span>
+        <label class="apple-row apple-row--slider">
+          <span class="apple-row-label">{{ t('basic.weight') }}</span>
           <input
-            type="range"
-            class="size-slider"
-            min="300" max="700" step="100"
             v-model.number="clockFontWeightValue"
+            type="range"
+            class="apple-slider"
+            min="300"
+            max="700"
+            step="100"
+            :style="{ '--p': weightProgress }"
             @change="onFontWeightChange"
           />
-          <span class="slider-value" :style="{ fontWeight: clockFontWeightValue }">{{ weightLabel }}</span>
-        </div>
+          <span class="apple-value" :style="{ fontWeight: clockFontWeightValue }">{{ weightLabel }}</span>
+        </label>
 
-        <!-- 恢复默认 -->
-        <button class="reset-btn" @click="resetToDefaults">
-          <Icon icon="fluent:arrow-reset-24-regular" class="text-xs" />
-          {{ t('basic.reset') }}
-        </button>
-
-        <!-- 实时预览 -->
-        <div class="size-preview">
+        <div class="apple-row apple-row--preview" aria-hidden="true">
           <span
+            class="apple-preview-time"
             :style="{
-              fontFamily: `'${clockFontValue}', sans-serif`,
-              fontSize: clockFontSizeValue * 0.35 + 'px',
+              fontFamily: clockFontFamily(clockFontValue),
+              fontSize: Math.min(clockFontSizeValue * 0.4, 56) + 'px',
               fontWeight: clockFontWeightValue,
-              color: '#1f2937',
-              lineHeight: 1,
             }"
           >14:32</span>
         </div>
-      </section>
 
-      <div class="divider" />
-
-      <!-- 主色调设置 -->
-      <section class="setting-section">
-        <div class="section-head">
-          <h3 class="section-title">{{ t('basic.colorTitle') }}</h3>
-          <p class="section-desc">{{ t('basic.colorDesc') }}</p>
+        <div class="apple-row apple-row--action">
+          <button type="button" class="apple-action" @click="resetToDefaults">{{ t('basic.reset') }}</button>
         </div>
+      </div>
+      <p class="apple-footnote">{{ t('basic.fontFootnote') }}</p>
+    </section>
 
-        <!-- 自定义颜色开关 -->
-        <div class="toggle-list">
-          <label class="toggle-row">
-            <input type="checkbox" v-model="useCustomColorValue" class="toggle-checkbox" @change="onCustomColorToggle" />
-            <span class="toggle-label">{{ t('basic.customColor') }}</span>
-          </label>
-          <p class="custom-color-hint" v-if="!useCustomColorValue">
-            {{ t('basic.adaptiveColor') }}
-          </p>
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('basic.dateSize') }}</h3>
+      <div class="apple-group">
+        <label class="apple-row apple-row--slider">
+          <span class="apple-row-label">{{ t('basic.dateSize') }}</span>
+          <input v-model.number="dateFontSizeValue" type="range" class="apple-slider"
+            min="10" max="40" step="1" :style="{ '--p': `${(dateFontSizeValue - 10) / 30 * 100}%` }"
+            @input="dateFontSize = dateFontSizeValue" @change="saveDateFontSize" />
+          <span class="apple-value">{{ dateFontSizeValue }}px</span>
+        </label>
+        <div class="apple-row apple-row--preview" aria-hidden="true">
+          <span :style="{ fontFamily: clockFontFamily(clockFontValue), fontSize: `${dateFontSizeValue}px` }">{{ datePreview }}</span>
         </div>
+      </div>
+      <p class="apple-footnote">{{ t('basic.dateSizeDesc') }}</p>
+    </section>
 
-        <div class="color-row" v-if="useCustomColorValue">
-          <!-- 色块触发器 -->
-          <div class="swatch-wrapper" ref="swatchWrapperRef">
-            <button
-              class="color-swatch"
-              :style="{ backgroundColor: themeColorInput }"
-              @click="togglePicker"
-              :title="t('basic.pickColor')"
-            />
+    <section class="apple-section">
+      <h3 class="apple-header">{{ t('basic.pageFontTitle') }}</h3>
+      <div class="apple-group">
+        <div class="apple-row">
+          <span class="apple-row-label">{{ t('basic.pageFontLabel') }}</span>
+          <AppleMenu
+            :model-value="pageFontValue"
+            :groups="pageMenuGroups"
+            :aria-label="t('basic.pageFontTitle')"
+            :sample="t('basic.pageFontSample')"
+            @open="ensureClockFontCatalog"
+            @update:model-value="selectPageFont"
+          />
+        </div>
+        <div class="apple-row apple-row--preview" aria-hidden="true">
+          <span class="apple-preview-page" :style="{ fontFamily: clockFontFamily(pageFontValue) }">{{ t('basic.pageFontSample') }}</span>
+        </div>
+      </div>
+      <p class="apple-footnote">{{ t('basic.pageFontFootnote') }}</p>
+    </section>
 
-            <!-- 气泡框 -->
-            <Transition name="popover">
-              <div v-if="showPicker" class="color-popover" ref="popoverRef">
-                <!-- 色相条 -->
-                <div
-                  class="hue-bar"
-                  ref="themeHueBar"
-                  @click="selectThemeHue"
-                  @mousedown="startThemeHueDrag"
-                >
+    <section class="apple-section" :class="{ 'is-open': showPicker }">
+      <h3 class="apple-header">{{ t('basic.colorTitle') }}</h3>
+      <div class="apple-group">
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('basic.customColor') }}</span>
+          <input v-model="useCustomColorValue" type="checkbox" role="switch" class="apple-switch" @change="onCustomColorToggle" />
+        </label>
+
+        <div v-if="useCustomColorValue" class="apple-row apple-row--color">
+          <span class="apple-row-label">{{ t('basic.colorWell') }}</span>
+          <div class="color-controls">
+            <div class="swatch-wrapper" ref="swatchWrapperRef">
+              <button
+                type="button"
+                class="color-swatch"
+                :style="{ backgroundColor: themeColorInput }"
+                :title="t('basic.pickColor')"
+                :aria-label="t('basic.pickColor')"
+                @click="togglePicker"
+              />
+              <Transition name="popover">
+                <div v-if="showPicker" class="color-popover" ref="popoverRef">
                   <div
-                    class="hue-thumb"
-                    :style="{ left: `${themeHuePosition}%`, backgroundColor: themeHueColor }"
-                  />
-                </div>
-
-                <!-- 饱和度/亮度面板 -->
-                <div
-                  class="sb-panel"
-                  ref="themeSatBrightnessArea"
-                  :style="{
-                    backgroundColor: themeHueColor,
-                    backgroundImage: 'linear-gradient(to right, white, transparent), linear-gradient(to bottom, transparent, black)',
-                  }"
-                  @click="selectThemeSaturationBrightness"
-                  @mousedown="startThemeSatBrightDrag"
-                >
+                    class="hue-bar"
+                    ref="themeHueBar"
+                    @click="selectThemeHue"
+                    @mousedown="startThemeHueDrag"
+                  >
+                    <div class="hue-thumb" :style="{ left: `${themeHuePosition}%`, backgroundColor: themeHueColor }" />
+                  </div>
                   <div
-                    class="sb-thumb"
-                    :style="{ left: `${themeSaturationPosition}%`, top: `${themeBrightnessPosition}%` }"
-                  />
+                    class="sb-panel"
+                    ref="themeSatBrightnessArea"
+                    :style="{
+                      backgroundColor: themeHueColor,
+                      backgroundImage: 'linear-gradient(to right, white, transparent), linear-gradient(to bottom, transparent, black)',
+                    }"
+                    @click="selectThemeSaturationBrightness"
+                    @mousedown="startThemeSatBrightDrag"
+                  >
+                    <div class="sb-thumb" :style="{ left: `${themeSaturationPosition}%`, top: `${themeBrightnessPosition}%` }" />
+                  </div>
+                  <div class="preset-grid">
+                    <button
+                      v-for="color in presetColors"
+                      :key="color"
+                      type="button"
+                      class="preset-chip"
+                      :style="{ backgroundColor: color }"
+                      :class="{ 'preset-chip--active': themeColorInput === color }"
+                      @click="selectThemePresetColor(color)"
+                    />
+                  </div>
+                  <div class="hex-row">
+                    <span class="hex-label">HEX</span>
+                    <input
+                      v-model="themeColorInput"
+                      class="hex-input"
+                      placeholder="#495057"
+                      spellcheck="false"
+                      @blur="validateAndApplyThemeColor"
+                      @keydown.enter="validateAndApplyThemeColor"
+                    />
+                  </div>
                 </div>
-
-                <!-- 预设色 -->
-                <div class="preset-grid">
-                  <button
-                    v-for="color in presetColors"
-                    :key="color"
-                    class="preset-chip"
-                    :style="{ backgroundColor: color }"
-                    :class="{ 'preset-chip--active': themeColorInput === color }"
-                    @click="selectThemePresetColor(color)"
-                  />
-                </div>
-
-                <!-- Hex 输入 -->
-                <div class="hex-row">
-                  <span class="hex-label">HEX</span>
-                  <input
-                    v-model="themeColorInput"
-                    class="hex-input"
-                    placeholder="#495057"
-                    @blur="validateAndApplyThemeColor"
-                    @keydown.enter="validateAndApplyThemeColor"
-                    spellcheck="false"
-                  />
-                </div>
-              </div>
-            </Transition>
-          </div>
-
-          <!-- 当前颜色 Hex 显示（只读，点击气泡里才能改） -->
-          <div class="hex-badge" :style="{ color: themeColorInput }">
-            {{ themeColorInput }}
-          </div>
-
-          <!-- 效果预览 -->
-          <div class="preview-pill">
-            <span class="preview-time" :style="{ color: themeColorInput }">12:34</span>
-            <Icon icon="fluent:settings-24-filled" class="preview-icon" :style="{ color: themeColorInput }" />
+              </Transition>
+            </div>
+            <span class="apple-hex">{{ themeColorInput }}</span>
+            <div class="preview-pill">
+              <span class="preview-time" :style="{ color: themeColorInput }">12:34</span>
+              <Icon icon="fluent:settings-24-filled" class="preview-icon" :style="{ color: themeColorInput }" />
+            </div>
           </div>
         </div>
-      </section>
-
-    </div>
+      </div>
+      <p v-if="!useCustomColorValue" class="apple-footnote">{{ t('basic.adaptiveColor') }}</p>
+      <p v-else class="apple-footnote">{{ t('basic.colorDesc') }}</p>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useAppearance, type AppearanceMode } from '@/composables/useAppearance';
+const { mode: appearanceMode, setMode } = useAppearance();
+async function changeAppearance(value: string) {
+  if (!['system', 'light', 'dark'].includes(value)) return;
+  try { await setMode(value as AppearanceMode); }
+  catch (e) { error(t('basic.updateFailed'), String(e)); }
+}
+
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useNotification } from "@/composables/useNotification";
-import { useI18n } from "@/i18n";
+import { isLocalePreference, useI18n } from "@/i18n";
 import { useWallpaper } from "@/composables/useWallpaper";
+import AppleMenu from "@/components/ui/AppleMenu.vue";
+import {
+  CLOCK_FONT_GROUPS,
+  CLOCK_FONTS,
+  clockFontFamily,
+  ensureClockFontCatalog,
+  type ClockFontGroup,
+} from "@/utils/clockFonts";
 
 const { success, error } = useNotification();
-const { t, preference, localeOptions, setLocalePreference } = useI18n();
+const { t, locale, preference, localeOptions, setLocalePreference } = useI18n();
 const {
   themeColor, showTime, showSeconds, showDate, use24Hour,
-  clockFont, clockFontSize, clockFontWeight, useCustomColor,
+  clockFont, clockFontSize, clockFontWeight, pageFont, useCustomColor, dateFontSize, searchGlass,
   updateThemeColor, updateShowTime, updateShowSeconds, updateShowDate, updateUse24Hour,
-  updateClockFont, updateClockFontSize, updateClockFontWeight, updateUseCustomColor,
-  loadState,
+  updateClockFont, updateClockFontSize, updateClockFontWeight, updatePageFont, updateUseCustomColor,
+  loadState, updateDateFontSize, updateSearchGlass,
 } = useWallpaper();
 
-// ─── 字体选项 ──────────────────────────────────────────
-const fontOptions = [
-  { label: 'Inter',             value: 'Inter' },
-  { label: 'Jakarta Sans',      value: 'Plus Jakarta Sans' },
-  { label: 'Outfit',            value: 'Outfit' },
-  { label: 'Poppins',           value: 'Poppins' },
-  { label: 'Nunito',            value: 'Nunito' },
-  { label: 'Montserrat',        value: 'Montserrat' },
-];
+const fontGroupLabel: Record<ClockFontGroup, string> = {
+  system: "basic.fontGroupSystem",
+  sans: "basic.fontGroupSans",
+  display: "basic.fontGroupDisplay",
+  serif: "basic.fontGroupSerif",
+  script: "basic.fontGroupScript",
+  mono: "basic.fontGroupMono",
+};
 
-const clockFontValue = ref(clockFont.value || 'Inter');
+const fontGroups = computed(() =>
+  CLOCK_FONT_GROUPS.map((id) => ({
+    id,
+    label: t(fontGroupLabel[id]),
+    fonts: CLOCK_FONTS.filter((font) => font.group === id),
+  })),
+);
+
+const toFontMenu = (selected: string) => {
+  const groups = fontGroups.value.map((group) => ({
+    label: group.label,
+    options: group.fonts.map((font) => ({
+      value: font.id,
+      label: font.labelKey ? t(font.labelKey) : font.id,
+      fontFamily: clockFontFamily(font.id),
+    })),
+  }));
+  if (CLOCK_FONTS.some((font) => font.id === selected)) return groups;
+  return [{ options: [{ value: selected, label: selected, fontFamily: clockFontFamily(selected) }] }, ...groups];
+};
+
+const appearanceGroups = computed(() => [{ options: [
+  { value: 'system', label: t('basic.systemAppearance') },
+  { value: 'light', label: t('basic.lightAppearance') },
+  { value: 'dark', label: t('basic.darkAppearance') },
+] }]);
+const languageGroups = computed(() => [{
+  options: localeOptions.map((option) => ({ value: option.id, label: option.native })),
+}]);
+
+const clockFontValue = ref(clockFont.value || "Inter");
+const pageFontValue = ref(pageFont.value || "system-ui");
+const clockMenuGroups = computed(() => toFontMenu(clockFontValue.value));
+const pageMenuGroups = computed(() => toFontMenu(pageFontValue.value));
+
+function onLocaleChange(value: string) {
+  if (isLocalePreference(value)) setLocalePreference(value);
+}
 
 async function selectFont(font: string) {
   clockFontValue.value = font;
   await updateClockFont(font);
 }
 
-// ─── 字体大小 & 粗细 ───────────────────────────────────
+async function selectPageFont(font: string) {
+  pageFontValue.value = font;
+  await updatePageFont(font);
+}
+
+const dateFontSizeValue = ref(dateFontSize.value);
+const searchGlassValue = ref(searchGlass.value);
+watch(searchGlass, value => { searchGlassValue.value = value; });
+watch(searchGlassValue, async value => {
+  try { await updateSearchGlass(value); }
+  catch (e) { error(t("basic.updateFailed"), String(e)); }
+});
+const datePreview = computed(() => new Intl.DateTimeFormat(locale.value, {
+  weekday: "long", year: "numeric", month: "long", day: "numeric",
+}).format(new Date()));
+async function saveDateFontSize() {
+  try { await updateDateFontSize(dateFontSizeValue.value); }
+  catch (e) { error(t("basic.updateFailed"), String(e)); }
+}
 const clockFontSizeValue = ref(clockFontSize.value || 96);
 const clockFontWeightValue = ref(clockFontWeight.value || 700);
+const sizeProgress = computed(() => `${((clockFontSizeValue.value - 48) / 112) * 100}%`);
+const weightProgress = computed(() => `${((clockFontWeightValue.value - 300) / 400) * 100}%`);
 
 const weightLabel = computed(() => {
   const labels: Record<number, string> = {
-    300: t('basic.weightThin'),
-    400: t('basic.weightRegular'),
-    500: t('basic.weightMedium'),
-    600: t('basic.weightSemibold'),
-    700: t('basic.weightBold'),
+    300: t("basic.weightThin"),
+    400: t("basic.weightRegular"),
+    500: t("basic.weightMedium"),
+    600: t("basic.weightSemibold"),
+    700: t("basic.weightBold"),
   };
   return labels[clockFontWeightValue.value] ?? String(clockFontWeightValue.value);
 });
@@ -294,21 +374,20 @@ async function onFontWeightChange() {
   await updateClockFontWeight(clockFontWeightValue.value);
 }
 
-// 恢复所有时钟相关默认值
-const DEFAULTS = { font: 'Inter', size: 96, weight: 700 };
+const DEFAULTS = { font: "Inter", size: 96, weight: 700 };
 async function resetToDefaults() {
   clockFontValue.value = DEFAULTS.font;
   clockFontSizeValue.value = DEFAULTS.size;
   clockFontWeightValue.value = DEFAULTS.weight;
+  searchGlassValue.value = false;
   await Promise.all([
     updateClockFont(DEFAULTS.font),
     updateClockFontSize(DEFAULTS.size),
     updateClockFontWeight(DEFAULTS.weight),
   ]);
-  success(t('basic.restored'), t('basic.restoredDetail'));
+  success(t("basic.restored"), t("basic.restoredDetail"));
 }
 
-// ─── 主色调 ───────────────────────────────────────────
 const themeColorInput = ref(themeColor.value || "#495057");
 const showPicker = ref(false);
 
@@ -326,27 +405,24 @@ const isDraggingHue = ref(false);
 const isDraggingSat = ref(false);
 const isLoading = ref(false);
 
-// ─── 自定义颜色开关 ────────────────────────────────────
 const useCustomColorValue = ref(useCustomColor.value);
 
 async function onCustomColorToggle() {
   await updateUseCustomColor(useCustomColorValue.value);
+  if (!useCustomColorValue.value) showPicker.value = false;
 }
 
-// ─── 时间设置 ──────────────────────────────────────────
 const showTimeValue = ref(showTime.value);
 const showSecondsValue = ref(showSeconds.value);
 const showDateValue = ref(showDate.value);
 const use24HourValue = ref(use24Hour.value);
 
-// ─── 预设颜色 ──────────────────────────────────────────
 const presetColors = [
   "#ffffff", "#000000", "#495057", "#3498db",
   "#2ecc71", "#e74c3c", "#f39c12", "#9b59b6",
   "#1abc9c", "#34495e", "#7f8c8d",
 ];
 
-// ─── 气泡框开关 ────────────────────────────────────────
 function togglePicker() {
   showPicker.value = !showPicker.value;
 }
@@ -356,15 +432,11 @@ function closePicker() {
 }
 
 function handleClickOutside(e: MouseEvent) {
-  if (
-    swatchWrapperRef.value &&
-    !swatchWrapperRef.value.contains(e.target as Node)
-  ) {
+  if (swatchWrapperRef.value && !swatchWrapperRef.value.contains(e.target as Node)) {
     closePicker();
   }
 }
 
-// ─── 颜色工具 ──────────────────────────────────────────
 function hslToHex(h: number, s: number, l: number): string {
   s /= 100; l /= 100;
   const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -427,7 +499,6 @@ function updateThemeColorFromHex(hex: string) {
   updateThemeHueColor();
 }
 
-// ─── 色相拖拽 ──────────────────────────────────────────
 function selectThemeHue(e: MouseEvent) {
   if (!themeHueBar.value) return;
   const rect = themeHueBar.value.getBoundingClientRect();
@@ -445,7 +516,6 @@ function startThemeHueDrag(e: MouseEvent) {
   document.addEventListener("mouseup", up);
 }
 
-// ─── 饱和度/亮度拖拽 ──────────────────────────────────
 function selectThemeSaturationBrightness(e: MouseEvent) {
   if (!themeSatBrightnessArea.value) return;
   const rect = themeSatBrightnessArea.value.getBoundingClientRect();
@@ -463,7 +533,6 @@ function startThemeSatBrightDrag(e: MouseEvent) {
   document.addEventListener("mouseup", up);
 }
 
-// ─── 预设 & 验证 ───────────────────────────────────────
 function selectThemePresetColor(color: string) {
   themeColorInput.value = color;
   updateThemeColorFromHex(color);
@@ -482,7 +551,6 @@ function validateAndApplyThemeColor() {
   updateThemeColorFromHex(themeColorInput.value);
 }
 
-// ─── 时间设置 watchers ────────────────────────────────
 async function withLoading(fn: () => Promise<void>, onError: () => void) {
   if (isLoading.value) return;
   isLoading.value = true;
@@ -502,6 +570,7 @@ watch(themeColorInput, async (v) => {
 });
 
 onMounted(async () => {
+  ensureClockFontCatalog();
   await loadState();
   themeColorInput.value = themeColor.value || "#495057";
   updateThemeColorFromHex(themeColorInput.value);
@@ -509,7 +578,9 @@ onMounted(async () => {
   showSecondsValue.value = showSeconds.value;
   showDateValue.value = showDate.value;
   use24HourValue.value = use24Hour.value;
-  clockFontValue.value = clockFont.value || 'Inter';
+  clockFontValue.value = clockFont.value || "Inter";
+  dateFontSizeValue.value = dateFontSize.value;
+  pageFontValue.value = pageFont.value || "system-ui";
   clockFontSizeValue.value = clockFontSize.value || 96;
   clockFontWeightValue.value = clockFontWeight.value || 700;
   useCustomColorValue.value = useCustomColor.value;
@@ -523,474 +594,450 @@ onBeforeUnmount(() => {
 
 <style scoped>
 #basic {
-  /* settings-page 已处理滚动与内边距 */
-  padding: 20px 24px 32px;
+  padding: 18px 16px 32px;
+  gap: 0;
+  background: transparent;
 }
 
-#basic > div { width: 100%; max-width: 760px; margin: 0 auto; }
+.apple-section + .apple-section { margin-top: 28px; }
+.apple-section.is-open { position: relative; z-index: 3; }
 
-/* 分区 */
-.setting-section { display: flex; flex-direction: column; gap: 12px; }
-.language-options { display: flex; flex-wrap: wrap; gap: 8px; }
-.language-option { min-height: 36px; padding: 0 14px; border: 1px solid rgba(60, 60, 67, 0.16); border-radius: 10px; background: #fff; color: #1f2937; cursor: pointer; font: inherit; font-size: 13px; }
-.language-option[aria-checked="true"] { border-color: #007aff; color: #007aff; background: rgba(0, 122, 255, 0.08); }
-.language-option:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
-@media (prefers-color-scheme: dark) {
-  .language-option { border-color: rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04); color: #f5f5f7; }
-  .language-option[aria-checked="true"] { border-color: #0a84ff; color: #0a84ff; background: rgba(10, 132, 255, 0.16); }
-}
-.section-head { display: flex; flex-direction: column; gap: 4px; }
-.section-title { font-size: 14px; font-weight: 600; color: var(--ui-text); }
-.section-desc  { font-size: 12px; color: var(--ui-text-muted); }
-
-.divider {
-  height: 1px;
-  background: rgba(60, 60, 67, 0.12);
-}
-
-/* 切换开关列表 */
-.toggle-list { display: flex; flex-direction: column; gap: 9px; }
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.toggle-checkbox {
-  appearance: none;
-  width: 17px;
-  height: 17px;
+.apple-header {
   margin: 0;
-  border: 1.5px solid rgba(60, 60, 67, 0.36);
-  border-radius: 5px;
-  background: #fff;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: grid;
-  place-content: center;
-  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  padding: 0 16px 7px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: #6e6e73;
 }
 
-.toggle-checkbox:checked { border-color: var(--ui-accent); background: var(--ui-accent); }
-.toggle-checkbox:checked::after { content: ""; width: 8px; height: 4px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: rotate(-45deg) translateY(-1px); }
-.toggle-checkbox:focus-visible { outline: 3px solid rgba(0, 122, 255, 0.22); outline-offset: 2px; }
-.toggle-checkbox:disabled { cursor: not-allowed; opacity: 0.55; }
-.toggle-label { font-size: 14px; color: var(--ui-text-secondary); }
+.apple-footnote {
+  margin: 7px 0 0;
+  padding: 0 16px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6e6e73;
+}
 
-/* 大小滑块行 */
-.slider-row {
+.apple-group {
+  background: #fff;
+  border-radius: 10px;
+}
+
+.apple-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 16px;
 }
 
-.slider-label {
-  font-size: 13px;
-  color: #6b7280;
-  width: 28px;
-  flex-shrink: 0;
+.apple-row + .apple-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: rgba(60, 60, 67, 0.16);
 }
 
-.size-slider {
+.apple-row-label {
   flex: 1;
-  accent-color: var(--ui-accent);
-  cursor: pointer;
-  height: 4px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: #1d1d1f;
+}
+
+.apple-row.is-disabled { opacity: 0.4; }
+
+.apple-row--slider .apple-row-label { flex: 0 0 4.5rem; }
+
+.apple-popup {
+  --popup-chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236e6e73' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   appearance: none;
+  -webkit-appearance: none;
+  flex: 0 1 220px;
+  width: min(220px, 58%);
+  height: 28px;
+  margin: 8px 0;
+  padding: 0 28px 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 7px;
+  background-color: #f5f5f7;
+  background-image: var(--popup-chevron);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 11px 11px;
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 13px;
+  line-height: 28px;
+  cursor: pointer;
+}
+
+.apple-popup:hover { background-color: #ececee; }
+.apple-popup:focus-visible {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.28);
+}
+
+.apple-popup--font { font-size: 15px; }
+
+.apple-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 42px;
+  height: 26px;
+  margin: 0;
+  border: 0;
+  border-radius: 13px;
+  background: #e9e9eb;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.apple-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24), 0 0.5px 1px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.apple-switch:checked { background: #34c759; }
+.apple-switch:checked::after { transform: translateX(16px); }
+.apple-switch:disabled { cursor: not-allowed; }
+.apple-switch:focus-visible {
+  outline: 3px solid rgba(52, 199, 89, 0.35);
+  outline-offset: 2px;
+}
+
+.apple-slider {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.apple-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background:
+    linear-gradient(#007aff, #007aff) left center / var(--p, 0%) 4px no-repeat,
+    linear-gradient(rgba(60, 60, 67, 0.18), rgba(60, 60, 67, 0.18)) left center / 100% 4px no-repeat;
+}
+
+.apple-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22), 0 0.5px 1px rgba(0, 0, 0, 0.1);
+}
+
+.apple-slider::-moz-range-track {
+  height: 4px;
+  border: 0;
   border-radius: 999px;
   background: rgba(60, 60, 67, 0.18);
 }
 
-.size-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
+.apple-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #007aff;
+}
+
+.apple-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
   border-radius: 50%;
-  background: var(--ui-accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
 }
 
-.size-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: var(--ui-accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+.apple-slider:focus-visible { outline: none; }
+.apple-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.28), 0 1px 4px rgba(0, 0, 0, 0.22);
 }
 
-.slider-value {
-  font-size: 12px;
-  color: #9ca3af;
-  font-family: ui-monospace, monospace;
-  width: 36px;
-  text-align: right;
-  flex-shrink: 0;
+.apple-value {
+  flex: 0 0 4.75rem;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+  color: #6e6e73;
 }
 
-/* 恢复默认按钮 */
-.reset-btn {
-  align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(60, 60, 67, 0.16);
-  background: transparent;
-  font-size: 12px;
-  color: #6b7280;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.reset-btn:hover {
-  background: rgba(0,0,0,0.05);
-  color: #374151;
-}
-
-/* 实时预览 */
-.size-preview {
-  display: flex;
-  align-items: center;
+.apple-row--preview {
   justify-content: center;
-  height: 64px;
-  background: rgba(0,0,0,0.03);
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(0,0,0,0.05);
+  min-height: 76px;
+  padding-block: 14px;
 }
 
-/* 字体网格 */
-.font-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.font-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
-  border-radius: 11px;
-  border: 1px solid rgba(60, 60, 67, 0.14);
-  background: rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
-}
-
-.font-card:hover {
-  background: rgba(0,0,0,0.05);
-  transform: translateY(-1px);
-}
-
-.font-card--active {
-  border-color: #2563eb;
-  background: rgba(37,99,235,0.06);
-}
-
-.font-preview {
-  font-size: 21px;
-  font-weight: 700;
-  color: #1f2937;
+.apple-preview-time,
+.apple-preview-page {
+  color: #1d1d1f;
   line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
-.font-name {
-  font-size: 11px;
-  color: #9ca3af;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+.apple-preview-page { font-size: 22px; letter-spacing: 0; }
+
+.apple-row--action { padding: 0; }
+
+.apple-action {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 0 0 10px 10px;
+  background: transparent;
+  color: #007aff;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
 }
 
-.font-card--active .font-name {
-  color: var(--ui-accent);
+.apple-action:hover { background: rgba(0, 122, 255, 0.06); }
+.apple-action:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px #007aff;
 }
 
-/* 颜色行 */
-.color-row {
+.color-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  margin-left: auto;
 }
 
-/* 色块 */
 .swatch-wrapper { position: relative; flex-shrink: 0; }
 
 .color-swatch {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.1);
-  transition: transform 0.15s, box-shadow 0.15s;
   display: block;
 }
 
-.color-swatch:hover {
-  transform: scale(1.08);
-  box-shadow: 0 0 0 2px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.15);
+.color-swatch:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 0 3px rgba(0, 122, 255, 0.28);
 }
 
-/* Hex 小标签 */
-.hex-badge {
+.apple-hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-weight: 600;
-  opacity: 0.85;
+  color: #6e6e73;
 }
 
-/* 效果预览胶囊 */
 .preview-pill {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.06);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .preview-time {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.preview-icon { font-size: 16px; }
+.preview-icon { font-size: 15px; }
 
-/* ── 气泡框 ───────────────────────────────────── */
 .color-popover {
   position: absolute;
   top: calc(100% + 8px);
-  left: 0;
+  right: 0;
   width: 240px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.06);
   padding: 10px;
-  z-index: 9999;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-/* 色相条 */
 .hue-bar {
   position: relative;
   height: 14px;
   border-radius: 7px;
   cursor: crosshair;
-  background: linear-gradient(to right,
-    #ff0000 0%, #ffff00 17%, #00ff00 33%,
-    #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+  background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
   user-select: none;
 }
 
-.hue-thumb {
+.hue-thumb,
+.sb-thumb {
   position: absolute;
-  top: 50%;
   width: 16px;
   height: 16px;
-  border-radius: 50%;
   border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
-/* 饱和度/亮度面板 */
+.hue-thumb { top: 50%; }
+
 .sb-panel {
   position: relative;
   height: 120px;
   border-radius: 7px;
   cursor: crosshair;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
   user-select: none;
 }
 
-.sb-thumb {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* 预设色 */
-.preset-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
+.preset-grid { display: flex; flex-wrap: wrap; gap: 5px; }
 
 .preset-chip {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
-  border: 1.5px solid transparent;
-  cursor: pointer;
-  transition: transform 0.1s, border-color 0.1s;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
   padding: 0;
+  border: 1.5px solid transparent;
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
 }
 
-.preset-chip:hover { transform: scale(1.15); }
 .preset-chip--active {
-  border-color: #2563eb !important;
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px rgba(37,99,235,0.25);
+  border-color: #007aff;
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
 }
 
-/* Hex 输入行 */
 .hex-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  border-top: 1px solid rgba(0,0,0,0.07);
   padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
 }
 
 .hex-label {
+  flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
-  color: #9ca3af;
   letter-spacing: 0.05em;
-  flex-shrink: 0;
+  color: #9ca3af;
 }
 
 .hex-input {
   flex: 1;
   height: 28px;
   padding: 0 8px;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-weight: 600;
-  color: #374151;
-  background: rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  color: #1d1d1f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
   outline: none;
-  transition: border-color 0.15s;
 }
 
 .hex-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
 }
 
-/* 气泡动画 */
 .popover-enter-active,
-.popover-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
+.popover-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .popover-enter-from,
-.popover-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.97);
-}
+.popover-leave-to { opacity: 0; transform: translateY(-6px) scale(0.97); }
 
-/* 暗色模式 */
 @media (prefers-color-scheme: dark) {
-  .section-title { color: #f3f4f6; }
-  .toggle-label  { color: #d1d5db; }
-  .divider       { background: rgba(255,255,255,0.07); }
+  .apple-header,
+  .apple-footnote,
+  .apple-value,
+  .apple-hex { color: #98989d; }
 
-  .font-card {
-    border-color: rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.03);
+  .apple-group { background: #2c2c2e; }
+  .apple-row-label,
+  .apple-preview-time,
+  .apple-preview-page { color: #f5f5f7; }
+  .apple-row + .apple-row::before { background: rgba(84, 84, 88, 0.65); }
+
+  .apple-popup {
+    --popup-chevron: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23aeaeb2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    border-color: rgba(255, 255, 255, 0.12);
+    background-color: #3a3a3c;
+    box-shadow: none;
+    color: #f5f5f7;
   }
 
-  .font-card:hover { background: rgba(255,255,255,0.06); }
+  .apple-popup:hover { background-color: #48484a; }
+  .apple-switch { background: #39393d; }
+  .apple-switch:checked { background: #30d158; }
+  .apple-action { color: #0a84ff; }
+  .apple-action:hover { background: rgba(10, 132, 255, 0.16); }
 
-  .font-card--active {
-    border-color: rgba(10, 132, 255, 0.72);
-    background: rgba(10, 132, 255, 0.12);
+  .apple-slider::-webkit-slider-runnable-track {
+    background:
+      linear-gradient(#0a84ff, #0a84ff) left center / var(--p, 0%) 4px no-repeat,
+      linear-gradient(rgba(235, 235, 245, 0.28), rgba(235, 235, 245, 0.28)) left center / 100% 4px no-repeat;
   }
 
-  .font-preview { color: #f3f4f6; }
-
-  .font-card--active .font-name { color: #0a84ff; }
-
-  .toggle-checkbox { border-color: rgba(235, 235, 245, 0.34); background: #2c2c2e; }
-  .divider { background: rgba(235, 235, 245, 0.12); }
-  .size-slider { background: rgba(235, 235, 245, 0.20); }
-
-  .reset-btn {
-    border-color: rgba(255,255,255,0.1);
-    color: #9ca3af;
-  }
-
-  .reset-btn:hover {
-    background: rgba(255,255,255,0.06);
-    color: #e5e7eb;
-  }
-
-  .size-preview {
-    background: rgba(255,255,255,0.04);
-    border-color: rgba(255,255,255,0.06);
-  }
-
-  .size-preview span { color: #f3f4f6 !important; }
-
-  .preview-pill {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.08);
-  }
+  .preview-pill { background: rgba(255, 255, 255, 0.08); }
 
   .color-popover {
-    background: #1f2937;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+    background: #2c2c2e;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
   }
 
-  .hue-bar, .sb-panel { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-
-  .hex-row { border-top-color: rgba(255,255,255,0.08); }
-
+  .hex-row { border-top-color: rgba(255, 255, 255, 0.08); }
   .hex-input {
-    background: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.1);
-    color: #e5e7eb;
-  }
-
-  .hex-input:focus { border-color: #3b82f6; }
-}
-
-input:disabled { cursor: not-allowed; }
-
-.custom-color-hint {
-  font-size: 11px;
-  color: #9ca3af;
-  line-height: 1.5;
-  padding: 6px 8px;
-  background: rgba(0,0,0,0.03);
-  border-radius: 6px;
-  border-left: 2px solid rgba(0,0,0,0.08);
-}
-
-@media (prefers-color-scheme: dark) {
-  .custom-color-hint {
-    background: rgba(255,255,255,0.04);
-    border-left-color: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
   }
 }
 
 @media (max-width: 560px) {
-  #basic { padding: 16px 18px 28px; }
-  .font-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #basic { padding: 16px 12px 28px; }
+  .apple-row--color { align-items: flex-start; padding-block: 10px; }
+  .color-controls { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-switch,
+  .apple-switch::after,
+  .popover-enter-active,
+  .popover-leave-active { transition: none; }
 }
 </style>
+

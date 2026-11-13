@@ -20,11 +20,14 @@ defineProps<{
 
 // ── 应用内所有使用的图标（集中注册，方便维护 + 预加载）──
 const ALL_APP_ICONS = [
-  // 设置面板
-  'fluent-color:settings-48',
-  'fluent-color:image-48',
-  'fluent-color:link-multiple-24',
-  'fluent-color:book-open-48',
+  // 设置导航（单色线性，随文字着色）
+  'ph:gear',
+  'ph:image',
+  'ph:magnifying-glass',
+  'ph:lightning',
+  'ph:arrows-clockwise',
+  'ph:book-open',
+  'ph:dots-three',
   'fluent-color:dismiss-circle-48',
   'fluent:settings-24-filled',
 

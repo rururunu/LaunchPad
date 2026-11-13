@@ -1,3 +1,4 @@
+import '@/composables/useAppearance';
 import { createApp, h } from 'vue';
 import { initI18n } from '@/i18n';
 import { useQuickLinks } from './composables/useQuickLinks';

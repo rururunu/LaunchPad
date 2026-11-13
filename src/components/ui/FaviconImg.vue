@@ -79,7 +79,7 @@ function onImageLoaded(event: Event) {
     emit('surface', dominant && dominant[1] > 40 ? `rgb(${dominant[0]})` : '#ffffff')
   } catch { emit('surface', '#ffffff') }
 }
-const dataUrl = ref<string>('')
+const dataUrl = ref<string>(props.customSrc?.startsWith('data:') ? props.customSrc : !props.customSrc ? getCachedFavicon(props.url) || '' : '')
 const loading = ref(false)
 let loadId = 0
 

@@ -8,29 +8,48 @@
     :title="link.label + ' · ' + link.url"
     :style="{ '--logo-surface': cardSurface, '--logo-text': logoText }"
   >
-    <FaviconImg :url="link.url" :custom-src="link.iconUrl" :size="iconSize" @surface="logoSurface = $event" />
+    <FaviconImg :url="link.url" :custom-src="link.iconUrl" :size="iconSize" @surface="rememberSurface" />
     <span v-if="showLabel" class="quick-link-label" :title="link.label">{{ link.label }}</span>
   </component>
 </template>
 
 <script setup lang="ts">
+import { getIconSurface, saveIconSurface } from '@/utils/iconCache';
 import { computed, ref, watch } from 'vue';
 import FaviconImg from '@/components/ui/FaviconImg.vue';
 import type { QuickLink } from '@/composables/useQuickLinks';
+import { usePreferredColorScheme } from '@/composables/usePreferredColorScheme';
+
+const { isDark } = usePreferredColorScheme();
 
 const props = withDefaults(defineProps<{ link: QuickLink; interactive?: boolean; iconSize?: number; showLabel?: boolean }>(), {
   interactive: true,
   iconSize: 16,
   showLabel: true,
 });
-const logoSurface = ref('#ffffff');
-const cardSurface = computed(() => /^#[0-9a-f]{6}$/i.test(props.link.iconBackground ?? '') ? props.link.iconBackground! : logoSurface.value);
+const surfaceKey = () => props.link.iconUrl || props.link.url;
+const logoSurface = ref(getIconSurface(surfaceKey()));
+function rememberSurface(color: string) {
+  logoSurface.value = color;
+  saveIconSurface(surfaceKey(), color);
+}
+const cardSurface = computed(() => {
+  if (/^#[0-9a-f]{6}$/i.test(props.link.iconBackground ?? '')) return props.link.iconBackground!;
+  // Light logo plates would stay white cards in dark mode; keep only real brand tints.
+  if (isDark.value && surfaceLuminance(logoSurface.value) > 0.8) return '#2c2c2e';
+  return logoSurface.value;
+});
+function surfaceLuminance(color: string) {
+  const values = /^#[0-9a-f]{6}$/i.test(color) ? [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16)) : color.match(/\d+/g)?.map(Number);
+  if (!values || values.length < 3) return 1;
+  return (values[0] * .299 + values[1] * .587 + values[2] * .114) / 255;
+}
 const logoText = computed(() => {
   const color = cardSurface.value;
   const values = /^#[0-9a-f]{6}$/i.test(color) ? [1, 3, 5].map(start => parseInt(color.slice(start, start + 2), 16)) : color.match(/\d+/g)?.map(Number);
   return values && values.length === 3 && values[0] * .299 + values[1] * .587 + values[2] * .114 < 150 ? '#ffffff' : '#1d1d1f';
 });
-watch(() => [props.link.url, props.link.iconUrl], () => { logoSurface.value = '#ffffff'; });
+watch(() => [props.link.url, props.link.iconUrl], () => { logoSurface.value = getIconSurface(surfaceKey()); });
 </script>
 
 <style scoped>

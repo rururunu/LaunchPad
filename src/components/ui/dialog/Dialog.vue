@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from "@iconify/vue";
-import { computed, onMounted, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import { useI18n } from "@/i18n";
 
 const { t } = useI18n();
@@ -27,6 +27,38 @@ const appVersion = (() => {
 const currentSettingComponent = shallowRef<any>(props.select?.[0] ?? null);
 const visibleCount = ref(props.select.length);
 const moreMenuOpen = ref(false);
+const navRef = ref<HTMLElement | null>(null);
+const measureRef = ref<HTMLElement | null>(null);
+const trackRef = ref<HTMLElement | null>(null);
+const indicator = ref({ left: 0, width: 0 });
+const indicatorReady = ref(false);
+let indicatorFrame = 0;
+let resizeObserver: ResizeObserver | null = null;
+
+function updateIndicator() {
+  const track = trackRef.value;
+  const active = track?.querySelector<HTMLElement>(".segment--active");
+  if (!track || !active) return;
+  // offsetLeft remains stable while the drawer itself is animating.
+  indicator.value = {
+    left: active.offsetLeft + (active.parentElement === track ? 0 : active.parentElement!.offsetLeft),
+    width: active.offsetWidth,
+  };
+  cancelAnimationFrame(indicatorFrame);
+  indicatorFrame = requestAnimationFrame(() => { indicatorReady.value = true; });
+}
+
+function onNavKeydown(event: KeyboardEvent) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  const buttons = [...(trackRef.value?.querySelectorAll<HTMLButtonElement>(".segment") ?? [])];
+  const index = buttons.indexOf(event.target as HTMLButtonElement);
+  if (index < 0) return;
+  event.preventDefault();
+  const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+    : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+  buttons[next]?.focus();
+  if (buttons[next]?.getAttribute("role") === "tab") buttons[next]?.click();
+}
 
 const visibleSelect = computed(() => props.select.slice(0, visibleCount.value));
 const overflowSelect = computed(() => props.select.slice(visibleCount.value));
@@ -34,19 +66,46 @@ const overflowIsActive = computed(() =>
   overflowSelect.value.some((item) => item.key === currentSettingComponent.value?.key)
 );
 
-const updateVisibleCount = () => {
-  const width = window.innerWidth;
-  if (width <= 360) visibleCount.value = Math.min(2, props.select.length);
-  else if (width <= 540) visibleCount.value = Math.min(3, props.select.length);
-  else if (width <= 700) visibleCount.value = Math.min(4, props.select.length);
-  else visibleCount.value = Math.min(5, props.select.length);
-  if (!overflowSelect.value.length) moreMenuOpen.value = false;
-};
+function fitSegments() {
+  const nav = navRef.value;
+  const measure = measureRef.value;
+  if (!nav || !measure) return;
+  const styles = getComputedStyle(nav);
+  const available = nav.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+  if (available <= 0) return;
+  const items = [...measure.querySelectorAll<HTMLElement>("[data-seg]")];
+  const moreWidth = measure.querySelector<HTMLElement>("[data-more]")?.offsetWidth ?? 0;
+  const trackPad = 8;
+  let used = trackPad;
+  let count = items.length;
+  const allFit = trackPad + items.reduce((total, item) => total + item.offsetWidth, 0) <= available;
+  for (let i = 0; !allFit && i < items.length; i++) {
+    const needsMore = i < items.length - 1;
+    if (used + items[i].offsetWidth + (needsMore ? moreWidth : 0) > available) {
+      count = i;
+      break;
+    }
+    used += items[i].offsetWidth;
+  }
+  if (count !== visibleCount.value) visibleCount.value = count;
+  if (count >= props.select.length) moreMenuOpen.value = false;
+  nextTick(updateIndicator);
+}
+
+function bindMeasure() {
+  resizeObserver?.disconnect();
+  resizeObserver = new ResizeObserver(() => fitSegments());
+  if (navRef.value) resizeObserver.observe(navRef.value);
+  if (measureRef.value) resizeObserver.observe(measureRef.value);
+  fitSegments();
+}
 
 onMounted(() => {
   if (props.select?.[0]) setUpClick(props.select[0].key);
-  updateVisibleCount();
-  window.addEventListener("resize", updateVisibleCount);
+  if (props.show) {
+    document.addEventListener("keydown", onKeydown);
+    nextTick(bindMeasure);
+  }
 });
 
 const handleClose = () => {
@@ -62,24 +121,48 @@ function setUpClick(select: string) {
 const onKeydown = (e: KeyboardEvent) => {
   if (e.key === "Escape" && props.show) {
     e.preventDefault();
+    if (moreMenuOpen.value) {
+      moreMenuOpen.value = false;
+      trackRef.value?.querySelector<HTMLButtonElement>(".segment--more")?.focus();
+      return;
+    }
     handleClose();
   }
 };
 
 watch(
   () => props.show,
-  (open) => {
-    if (open) document.addEventListener("keydown", onKeydown);
-    else {
+  async (open) => {
+    if (open) {
+      document.addEventListener("keydown", onKeydown);
+      await nextTick();
+      bindMeasure();
+    } else {
+      indicatorReady.value = false;
       moreMenuOpen.value = false;
       document.removeEventListener("keydown", onKeydown);
+      resizeObserver?.disconnect();
     }
   }
 );
 
+watch(() => currentSettingComponent.value?.key, () => nextTick(updateIndicator));
+
+function onOutsidePointer(event: PointerEvent) {
+  if (!navRef.value?.contains(event.target as Node)) moreMenuOpen.value = false;
+}
+onMounted(() => document.addEventListener("pointerdown", onOutsidePointer));
+
+watch(
+  () => props.select.map((item) => item.label).join("\0"),
+  () => nextTick(fitSegments)
+);
+
 onBeforeUnmount(() => {
+  cancelAnimationFrame(indicatorFrame);
+  document.removeEventListener("pointerdown", onOutsidePointer);
   document.removeEventListener("keydown", onKeydown);
-  window.removeEventListener("resize", updateVisibleCount);
+  resizeObserver?.disconnect();
 });
 </script>
 
@@ -101,56 +184,83 @@ onBeforeUnmount(() => {
           </header>
 
           <!-- 导航 -->
-          <nav class="drawer-nav">
-            <button
-              v-for="item in visibleSelect"
-              :key="item.key"
-              type="button"
-              class="nav-item"
-              :class="{ 'nav-item--active': currentSettingComponent?.key === item.key }"
-              @click="setUpClick(item.key)"
-            >
-              <Icon :icon="item.icon" class="text-lg flex-shrink-0" />
-              <span class="nav-label">{{ item.label }}</span>
-            </button>
-            <div v-if="overflowSelect.length" class="nav-more-wrap">
+          <nav ref="navRef" class="drawer-nav" :aria-label="props.title || t('settings.title')">
+            <div ref="trackRef" class="segmented" role="tablist" :aria-label="props.title || t('settings.title')" @keydown="onNavKeydown">
+              <span
+                class="segment-indicator"
+                :class="{ 'is-ready': indicatorReady }"
+                :style="{ transform: `translateX(${indicator.left}px)`, width: `${indicator.width}px`, opacity: indicator.width ? 1 : 0 }"
+                aria-hidden="true"
+              />
               <button
+                v-for="item in visibleSelect"
+                :key="item.key"
                 type="button"
-                class="nav-more"
-                :class="{ 'nav-more--active': overflowIsActive || moreMenuOpen }"
-                :aria-expanded="moreMenuOpen"
-                :title="t('settings.more')"
-                :aria-label="t('settings.more')"
-                @click="moreMenuOpen = !moreMenuOpen"
+                role="tab"
+                class="segment"
+                :class="{ 'segment--active': currentSettingComponent?.key === item.key }"
+                :aria-selected="currentSettingComponent?.key === item.key"
+                :id="`settings-tab-${item.key}`"
+                aria-controls="settings-tab-panel"
+                :tabindex="currentSettingComponent?.key === item.key ? 0 : -1"
+                @click="setUpClick(item.key)"
               >
-                <Icon icon="fluent:more-horizontal-24-regular" />
+                <Icon :icon="item.icon" class="nav-icon" />
+                <span>{{ item.label }}</span>
               </button>
-              <div v-if="moreMenuOpen" class="nav-more-menu">
+              <div v-if="overflowSelect.length" class="nav-more-wrap">
                 <button
-                  v-for="item in overflowSelect"
-                  :key="item.key"
                   type="button"
-                  class="nav-more-item"
-                  :class="{ 'nav-more-item--active': currentSettingComponent?.key === item.key }"
-                  @click="setUpClick(item.key)"
+                  class="segment segment--more"
+                  :class="{ 'segment--active': overflowIsActive }"
+                  :aria-expanded="moreMenuOpen"
+                  aria-haspopup="menu"
+                  :tabindex="overflowIsActive || moreMenuOpen ? 0 : -1"
+                  :title="t('settings.more')"
+                  :aria-label="t('settings.more')"
+                  @click="moreMenuOpen = !moreMenuOpen"
                 >
-                  <Icon :icon="item.icon" />
-                  <span>{{ item.label }}</span>
+                  <Icon icon="ph:dots-three" class="nav-icon" />
                 </button>
+                <Transition name="nav-menu">
+                <div v-if="moreMenuOpen" class="nav-more-menu" role="menu">
+                  <button
+                    v-for="item in overflowSelect"
+                    :key="item.key"
+                    type="button"
+                    role="menuitem"
+                    class="nav-more-item"
+                    :class="{ 'nav-more-item--active': currentSettingComponent?.key === item.key }"
+                    @click="setUpClick(item.key)"
+                  >
+                    <Icon :icon="item.icon" class="nav-icon" />
+                    <span>{{ item.label }}</span>
+                  </button>
+                </div>
+                </Transition>
               </div>
+            </div>
+            <div ref="measureRef" class="segment-measure" aria-hidden="true">
+              <span v-for="item in props.select" :key="item.key" class="segment" data-seg>
+                <Icon :icon="item.icon" class="nav-icon" />
+                <span>{{ item.label }}</span>
+              </span>
+              <span class="segment segment--more" data-more>
+                <Icon icon="ph:dots-three" class="nav-icon" />
+              </span>
             </div>
           </nav>
 
           <!-- 内容 -->
-          <div class="drawer-body">
-            <div class="content-header" v-if="currentSettingComponent">
-              <span>{{ currentSettingComponent.label }}</span>
-            </div>
+          <div id="settings-tab-panel" class="drawer-body" role="tabpanel" :aria-label="currentSettingComponent?.label" :aria-labelledby="overflowIsActive ? undefined : `settings-tab-${currentSettingComponent?.key}`">
+            <Transition name="settings-content">
             <component
               v-if="currentSettingComponent"
+              :key="currentSettingComponent.key"
               class="drawer-content ui-scroll"
               :is="currentSettingComponent.in"
             />
+            </Transition>
           </div>
 
           <!-- 底栏 -->
@@ -248,130 +358,197 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 10;
   display: flex;
-  gap: 4px;
-  padding: 10px 20px;
+  padding: 16px 22px 8px;
   overflow: visible;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
-  background: rgba(255, 255, 255, 0.48);
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
 }
 
-.nav-item {
+.segmented {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(118, 118, 128, 0.10);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.045), 0 1px 0 rgba(255, 255, 255, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+
+.nav-icon {
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.segment {
+  position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 36px;
+  height: 34px;
+  margin: 0;
   padding: 0 12px;
-  border-radius: 9px;
-  border: 1px solid transparent;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 7px;
+  appearance: none;
   background: transparent;
-  cursor: pointer;
+  color: rgba(60, 60, 67, 0.78);
+  font: inherit;
   font-size: 13px;
-  color: #4b5563;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
   user-select: none;
+  z-index: 1;
+  transition: color 180ms ease, background-color 180ms ease;
 }
 
-.nav-item:hover {
-  background-color: rgba(60, 60, 67, 0.07);
+.segmented > .segment {
+  flex: 1 1 0;
+  min-width: max-content;
 }
 
-.nav-item--active {
-  border-color: rgba(60, 60, 67, 0.12);
-  background-color: #fff;
-  color: #007aff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+.segment > span,
+.segment > .nav-icon {
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.nav-item--active:hover {
-  background-color: #fff;
+.segment:active > span,
+.segment:active > .nav-icon {
+  transform: translateY(0.5px) scale(0.97);
 }
 
-.nav-label {
-  font-weight: 500;
+.segment-indicator {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  pointer-events: none;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #fff, #fdfdfe);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.055);
+}
+
+.segment-indicator.is-ready {
+  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.segment:hover {
+  color: #1d1d1f;
+}
+
+.segment--active,
+.segment--active:hover {
+  color: #1d1d1f;
+}
+
+.segment--active .nav-icon {
+  color: var(--ui-accent, #007aff);
+}
+
+.segment:focus-visible {
+  outline: 2px solid #007aff;
+  outline-offset: -1px;
+}
+
+/* Quiet separators disappear on either side of the moving selection. */
+.segmented > .segment + .segment::before,
+.segmented > .nav-more-wrap::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: rgba(60, 60, 67, 0.13);
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.segmented > .segment--active::before,
+.segmented > .segment--active + .segment::before,
+.segmented > .segment--active + .nav-more-wrap::before,
+.segmented > .nav-more-wrap:has(.segment--active)::before {
+  opacity: 0;
+}
+
+.segment--more {
+  width: 38px;
+  padding: 0;
+}
+
+.segment-measure {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .nav-more-wrap {
   position: relative;
+  display: flex;
   flex-shrink: 0;
-}
-
-.nav-more {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  color: #4b5563;
-  background: transparent;
-  cursor: pointer;
-  font-size: 18px;
-}
-
-.nav-more:hover,
-.nav-more--active {
-  color: #007aff;
-  background: rgba(60, 60, 67, 0.07);
 }
 
 .nav-more-menu {
   position: absolute;
-  top: calc(100% + 7px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 20;
-  width: 156px;
+  min-width: 148px;
   padding: 5px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .nav-more-item {
   width: 100%;
-  height: 36px;
-  padding: 0 9px;
+  height: 32px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 6px;
-  color: #4b5563;
+  border-radius: 7px;
+  color: #1d1d1f;
   background: transparent;
   cursor: pointer;
-  font-size: 12px;
+  font: inherit;
+  font-size: 13px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .nav-more-item:hover,
 .nav-more-item--active {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.08);
+  color: #fff;
+  background: #007aff;
 }
 
 .drawer-body {
+  position: relative;
+  overflow: hidden;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: #f5f5f7;
-}
-
-.content-header {
-  height: 44px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  border-bottom: 1px solid rgba(60, 60, 67, 0.10);
-  flex-shrink: 0;
 }
 
 .drawer-content {
@@ -464,55 +641,76 @@ onBeforeUnmount(() => {
     color: #f4f4f5;
   }
 
-  .drawer-nav {
-    border-bottom-color: rgba(235, 235, 245, 0.10);
-    background: rgba(255, 255, 255, 0.025);
+  .segmented {
+    background: rgba(118, 118, 128, 0.24);
   }
 
-  .nav-item {
-    color: #a1a1aa;
-    border-color: transparent;
-    background: transparent;
+  .segment {
+    color: rgba(235, 235, 245, 0.6);
   }
 
-  .nav-item:hover {
-    background-color: rgba(255, 255, 255, 0.07);
+  .segment:hover {
+    color: #f5f5f7;
+  }
+
+  .segment--active,
+  .segment--active:hover {
     color: #fff;
   }
 
-  .nav-item--active,
-  .nav-item--active:hover {
-    color: #0a84ff;
-    border-color: rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.10);
-    box-shadow: none;
+  .segmented {
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16), 0 1px 0 rgba(255, 255, 255, 0.04);
   }
-
-  .nav-more {
-    color: #a1a1aa;
-    border-color: transparent;
-    background: transparent;
+  .segment-indicator {
+    background: linear-gradient(180deg, #626266, #555559);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.24), inset 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  }
+  .segment--active .nav-icon { color: #77b6ff; }
+  .segmented > .segment + .segment::before,
+  .segmented > .nav-more-wrap::before {
+    background: rgba(235, 235, 245, 0.12);
   }
 
   .nav-more-menu {
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(39, 39, 42, 0.98);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(44, 44, 46, 0.92);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   }
 
   .nav-more-item {
-    color: #d4d4d8;
+    color: #f5f5f7;
+  }
+
+  .nav-more-item:hover,
+  .nav-more-item--active {
+    background: #0a84ff;
+    color: #fff;
   }
 
   .drawer-body {
     background: #1c1c1e;
   }
-
-  .content-header {
-    color: #f3f4f6;
-    border-bottom-color: rgba(235, 235, 245, 0.10);
-  }
 }
+
+/* Keep incoming content responsive while the previous page fades away. */
+.settings-content-enter-active {
+  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.settings-content-leave-active {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.settings-content-enter-from { opacity: 0; transform: translateY(5px); }
+.settings-content-leave-to { opacity: 0; }
+.nav-menu-enter-active,
+.nav-menu-leave-active {
+  transform-origin: top right;
+  transition: opacity 150ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav-menu-enter-from,
+.nav-menu-leave-to { opacity: 0; transform: translateY(-3px) scale(0.97); }
 
 /* 抽屉动画：从右侧滑入 */
 .drawer-enter-active,
@@ -555,15 +753,13 @@ onBeforeUnmount(() => {
     width: 100vw;
   }
 
-  .drawer-nav {
-    padding-inline: 12px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .drawer-nav::-webkit-scrollbar { display: none; }
-  .nav-item { padding-inline: 10px; }
-  .content-header { padding-inline: 18px; }
+  .drawer-nav { padding-inline: 12px; }
   .drawer-footer { padding-inline: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 </style>

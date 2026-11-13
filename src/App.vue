@@ -12,6 +12,8 @@ import { useNotification } from '@/composables/useNotification'
 import { usePreferredColorScheme } from '@/composables/usePreferredColorScheme'
 import { getWallpaperSourceMeta, type WallpaperSourceId } from '@/utils/wallpaperSources'
 import { useI18n } from '@/i18n'
+import { clockFontFamily } from '@/utils/clockFonts'
+import { useWallpaperIconColors } from '@/composables/useWallpaperIconColors'
 
 const {
   wallpaperType,
@@ -27,6 +29,7 @@ const {
   restorePreviousWallpaper,
   canRestorePreviousWallpaper,
   isRestoringWallpaper,
+  pageFont,
 } = useWallpaper()
 const { success, error } = useNotification()
 const { t } = useI18n()
@@ -35,8 +38,16 @@ const isLoading = ref(false)
 const isRefreshingWallpaper = ref(false)
 const wallpaperControlsExpanded = ref(false)
 const wallpaperControlsRef = ref<HTMLElement | null>(null)
-const showQuickLinks = ref(true)
 const QUICK_LINKS_VISIBILITY_KEY = 'showQuickLinks'
+// Synchronous mirror of the async setting so the first frame doesn't flash hidden cards.
+const QUICK_LINKS_VISIBILITY_MIRROR = 'launchpad:showQuickLinks'
+const readQuickLinksMirror = () => {
+  try { return localStorage.getItem(QUICK_LINKS_VISIBILITY_MIRROR) !== 'false' } catch { return true }
+}
+const writeQuickLinksMirror = (visible: boolean) => {
+  try { localStorage.setItem(QUICK_LINKS_VISIBILITY_MIRROR, String(visible)) } catch {}
+}
+const showQuickLinks = ref(readQuickLinksMirror())
 const FAVORITE_WALLPAPERS_KEY = 'favoriteWallpapers'
 
 interface FavoriteWallpaper {
@@ -77,11 +88,16 @@ const isCurrentWallpaperFavorite = computed(() =>
   favoriteWallpapers.value.some((favorite) => favorite.url === currentWallpaperUrl.value)
 )
 
+const baseStyle = computed(() => ({
+  ...getWallpaperStyle(),
+  fontFamily: clockFontFamily(pageFont.value),
+}))
+
 const { isDark } = usePreferredColorScheme()
-const topIconColor = computed(() => {
-  if (wallpaperType.value !== 'none' || isDark.value) return '#f5f5facc'
-  return '#374151cc'
-})
+const setupControlsRef = ref<HTMLElement | null>(null)
+const { topColor: topIconColor, bottomColor: bottomIconColor } = useWallpaperIconColors(
+  wallpaperType, wallpaperUrl, backgroundColor, showMask, isDark, setupControlsRef, wallpaperControlsRef,
+)
 
 const setup = ref({ show: false })
 const BasicSettings = defineAsyncComponent(() => import('@/components/settings/BasicSettings.vue'))
@@ -92,12 +108,12 @@ const DataTransferSettings = defineAsyncComponent(() => import('@/components/set
 const TutorialSettings = defineAsyncComponent(() => import('@/components/settings/TutorialSettings.vue'))
 
 const setUpSelect = computed(() => [
-  { key: 'basic',    icon: 'fluent-color:settings-48',        label: t('settings.tabs.basic'), in: BasicSettings },
-  { key: 'img',      icon: 'fluent-color:image-48',           label: t('settings.tabs.background'), in: BackgroundSettings },
-  { key: 'jump',     icon: 'fluent-color:link-multiple-24',   label: t('settings.tabs.search'), in: SearchEngineSettings },
-  { key: 'quick',    icon: 'fluent:flash-24-filled',           label: t('settings.tabs.quick'), in: QuickLinkSettings },
-  { key: 'transfer', icon: 'fluent:arrow-sync-24-regular',     label: t('settings.tabs.transfer'), in: DataTransferSettings },
-  { key: 'tutorial', icon: 'fluent-color:book-open-48',       label: t('settings.tabs.tutorial'), in: TutorialSettings },
+  { key: 'basic',    icon: 'ph:gear',               label: t('settings.tabs.basic'), in: BasicSettings },
+  { key: 'img',      icon: 'ph:image',              label: t('settings.tabs.background'), in: BackgroundSettings },
+  { key: 'jump',     icon: 'ph:magnifying-glass',   label: t('settings.tabs.search'), in: SearchEngineSettings },
+  { key: 'quick',    icon: 'ph:lightning',          label: t('settings.tabs.quick'), in: QuickLinkSettings },
+  { key: 'transfer', icon: 'ph:arrows-clockwise',   label: t('settings.tabs.transfer'), in: DataTransferSettings },
+  { key: 'tutorial', icon: 'ph:book-open',          label: t('settings.tabs.tutorial'), in: TutorialSettings },
 ])
 
 function onSetup() {
@@ -106,6 +122,7 @@ function onSetup() {
 
 async function toggleQuickLinks() {
   showQuickLinks.value = !showQuickLinks.value
+  writeQuickLinksMirror(showQuickLinks.value)
   await storage.set(QUICK_LINKS_VISIBILITY_KEY, String(showQuickLinks.value))
 }
 
@@ -186,6 +203,7 @@ onMounted(async () => {
     ])
 
     showQuickLinks.value = savedQuickLinksVisibility !== false && savedQuickLinksVisibility !== 'false'
+    writeQuickLinksMirror(showQuickLinks.value)
     favoriteWallpapers.value = parseFavoriteWallpapers(storedFavoriteWallpapers)
     unsubFavoriteWallpapers = storage.onChange(FAVORITE_WALLPAPERS_KEY, (changes) => {
       favoriteWallpapers.value = parseFavoriteWallpapers(changes[FAVORITE_WALLPAPERS_KEY]?.newValue)
@@ -268,7 +286,7 @@ onBeforeUnmount(() => {
         id="base"
         class="text-slate-700 dark:text-zinc-400 transition-all duration-500 ease-in-out"
         :class="{ 'has-background': wallpaperType !== 'none' }"
-        :style="getWallpaperStyle()"
+        :style="baseStyle"
       >
         <Transition
           enter-active-class="transition-opacity duration-500 ease-out"
@@ -281,15 +299,13 @@ onBeforeUnmount(() => {
           <div v-if="wallpaperType !== 'none' && showMask" id="mask" class="z-0" />
         </Transition>
 
-        <div id="setup" class="z-[200]">
+        <div id="setup" ref="setupControlsRef" class="z-[200]" :style="{ color: topIconColor }">
           <button
-            v-if="currentWallpaperUrl"
             type="button"
             class="setup-btn setup-btn--small"
-            :style="{ color: topIconColor }"
             :title="isCurrentWallpaperFavorite ? t('app.favorited') : t('app.favorite')"
             :aria-label="isCurrentWallpaperFavorite ? t('app.favorited') : t('app.favorite')"
-            :disabled="isCurrentWallpaperFavorite"
+            :disabled="!currentWallpaperUrl || isCurrentWallpaperFavorite"
             @click="favoriteCurrentWallpaper"
           >
             <Icon
@@ -300,7 +316,6 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="setup-btn"
-            :style="{ color: topIconColor }"
             :title="showQuickLinks ? t('app.hideLinks') : t('app.showLinks')"
             :aria-label="showQuickLinks ? t('app.hideLinks') : t('app.showLinks')"
             :aria-pressed="showQuickLinks"
@@ -314,7 +329,6 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="setup-btn"
-            :style="{ color: topIconColor }"
             :title="t('app.settings')"
             @click="onSetup"
           >
@@ -326,6 +340,7 @@ onBeforeUnmount(() => {
           v-if="wallpaperType === 'source'"
           id="wallpaper-controls"
           ref="wallpaperControlsRef"
+          :style="{ color: bottomIconColor }"
           class="z-[200]"
         >
           <div
@@ -336,8 +351,7 @@ onBeforeUnmount(() => {
               type="button"
               class="setup-btn wallpaper-nav-btn wallpaper-prev-btn"
               :class="{ 'wallpaper-nav-btn--inactive': !canRestorePreviousWallpaper }"
-              :style="{ color: topIconColor }"
-              :disabled="!canRestorePreviousWallpaper || isRefreshingWallpaper || isRestoringWallpaper"
+                :disabled="!canRestorePreviousWallpaper || isRefreshingWallpaper || isRestoringWallpaper"
               :title="canRestorePreviousWallpaper ? t('app.previousWallpaper') : t('app.previousWallpaperDisabled')"
               :aria-label="t('app.previousWallpaper')"
               @click="onRestoreWallpaper"
@@ -352,8 +366,7 @@ onBeforeUnmount(() => {
               type="button"
               id="wallpaper-refresh"
               class="setup-btn wallpaper-nav-btn wallpaper-refresh-btn"
-              :style="{ color: topIconColor }"
-              :disabled="isRefreshingWallpaper || isRestoringWallpaper"
+                :disabled="isRefreshingWallpaper || isRestoringWallpaper"
               :title="t('app.nextWallpaper')"
               :aria-label="t('app.nextWallpaper')"
               :aria-expanded="wallpaperControlsExpanded"
@@ -428,11 +441,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 15px;
-  background: rgba(20, 20, 22, 0.16);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: none;
+  background: transparent;
+  transition: color 180ms ease;
 }
 
 #wallpaper-controls {
@@ -441,6 +452,7 @@ onBeforeUnmount(() => {
   bottom: 18px;
   z-index: 200;
   touch-action: manipulation;
+  transition: color 180ms ease;
 }
 
 .wallpaper-controls-inner {
@@ -466,6 +478,7 @@ onBeforeUnmount(() => {
 .wallpaper-controls-inner.is-expanded {
   gap: 6px;
   padding: 4px;
+  color: #fff;
   background: rgba(15, 15, 18, 0.28);
   border-color: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
@@ -541,6 +554,7 @@ onBeforeUnmount(() => {
   background: transparent;
   box-shadow: none;
   cursor: pointer;
+  color: inherit;
   transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
 }
 
@@ -561,8 +575,13 @@ onBeforeUnmount(() => {
 
 .setup-btn:hover:not(:disabled) {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, currentColor 12%, transparent);
   transform: scale(1.08);
+}
+
+.setup-btn:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .setup-btn:active:not(:disabled) {

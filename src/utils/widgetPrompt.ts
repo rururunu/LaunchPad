@@ -35,6 +35,7 @@ export function buildWidgetPrompt(input: WidgetPromptInput): string {
     '- 根元素请用 height:100vh 或 min-height:100%，让内容撑满卡片；卡片大小会在上面的网格范围内变化，请用 flex/grid 和相对单位自适应，小尺寸下不要溢出。',
     '- 同时适配浅色和深色：用 @media (prefers-color-scheme: dark) 切换配色。',
     '- 视觉风格：圆角、留白充足、字号层次清晰，接近 macOS / iOS 的简洁风格。',
+    '- 尽量不要把按钮、图标、菜单等界面放在右上角。卡片右上角是宿主页面的拖动手柄（距右上角 8px，约 24×24），悬停时会出现，放在那里会被挡住。操作放到左上角、标题旁或底部。',
     '',
     '## 输出格式',
     '1. 「卡片代码」：一个 ```html 代码块，包含完整的 HTML 片段（可含 <style> 和 <script>），不要写 <html>、<head>、<body> 标签。',

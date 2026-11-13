@@ -14,6 +14,21 @@ const PRELUDE = '(' + function () {
       }, 5000);
     });
   }
+  function appearance(glass, theme) {
+    document.documentElement.classList.toggle('lp-glass', glass === true);
+    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+    function updateRules(rules) {
+      Array.from(rules).forEach(function (rule) {
+        if (rule.media) {
+          if (!rule.lpOriginalMedia) rule.lpOriginalMedia = rule.media.mediaText;
+          rule.media.mediaText = rule.lpOriginalMedia.replace(/\(prefers-color-scheme:\s*(dark|light)\)/g, function (_, mode) { return mode === theme ? '(min-width: 0px)' : '(max-width: -1px)'; });
+        }
+        if (rule.cssRules) updateRules(rule.cssRules);
+      });
+    }
+    Array.from(document.styleSheets).forEach(function (sheet) { try { updateRules(sheet.cssRules); } catch (_) {} });
+  }
   window.lp = {
     get: function (key) { return call('get', key); },
     set: function (key, value) { return call('set', key, value); },
@@ -24,6 +39,7 @@ const PRELUDE = '(' + function () {
     if (event.source !== parent) return;
     var data = event.data;
     if (!data || data.lp !== 1) return;
+    if (data.type === 'appearance') { appearance(data.glass, data.theme); return; }
     if (data.id && pending[data.id]) {
       var p = pending[data.id];
       delete pending[data.id];
@@ -42,6 +58,8 @@ window.addEventListener('message', event => {
     const frame = document.createElement('iframe');
     frame.setAttribute('sandbox', 'allow-scripts');
     frame.srcdoc = '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;min-height:100%;font:14px system-ui;box-sizing:border-box}*{box-sizing:border-box}</style><script>' + PRELUDE + '<\/script>' + data.code;
+    frame.srcdoc += '<style>html.lp-glass,html.lp-glass body,html.lp-glass body > .app{background:transparent!important;background-image:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}html.lp-glass{scrollbar-width:none}</style>';
+    frame.addEventListener('load', () => frame.contentWindow.postMessage({lp:1,type:'appearance',glass:data.glass === true,theme:data.theme}, '*'));
     inner = frame;
     document.body.replaceChildren(frame);
     return;

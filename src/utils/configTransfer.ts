@@ -14,6 +14,9 @@ const BASIC_KEYS = [
   'clockFont',
   'clockFontSize',
   'clockFontWeight',
+  'dateFontSize',
+  'searchGlass',
+  'pageFont',
   'useCustomColor',
 ] as const
 
@@ -40,7 +43,7 @@ export interface ConfigFile {
     basic: JsonObject
     background: JsonObject & { favoriteWallpapers: unknown[] }
     searchEngines: { defaultKey: string; items: unknown[] }
-    quickAccess: { visible: boolean; links: unknown[]; groups: unknown[]; widgets?: unknown[]; displayStyle?: 'pill' | 'card' }
+    quickAccess: { visible: boolean; links: unknown[]; groups: unknown[]; widgets?: unknown[]; cardAlignment?: 'top' | 'center'; glassCards?: boolean; displayStyle?: 'pill' | 'card' }
   }
 }
 
@@ -100,7 +103,7 @@ const isValidQuickWidget = (value: unknown) =>
 const isValidFavorite = (value: unknown) => isObject(value) && typeof value.url === 'string'
 
 export async function createConfigExport(): Promise<ConfigFile> {
-  const [rawAppConfig, rawFavorites, rawEngines, rawDefaultKey, rawLinks, rawGroups, rawWidgets, rawVisible, rawDisplayStyle] = await Promise.all([
+  const [rawAppConfig, rawFavorites, rawEngines, rawDefaultKey, rawLinks, rawGroups, rawWidgets, rawVisible, rawDisplayStyle, rawGlassCards, rawCardAlignment] = await Promise.all([
     storage.get('appConfig'),
     storage.get('favoriteWallpapers'),
     storage.get('jumpData'),
@@ -110,6 +113,8 @@ export async function createConfigExport(): Promise<ConfigFile> {
     storage.get('quickAccessWidgets'),
     storage.get('showQuickLinks'),
     storage.get('quickLinkDisplayStyle'),
+    storage.get('glassCards'),
+    storage.get('cardAlignment'),
   ])
 
   const appConfig = parseObject(rawAppConfig)
@@ -121,7 +126,7 @@ export async function createConfigExport(): Promise<ConfigFile> {
     version: VERSION,
     exportedAt: new Date().toISOString(),
     settings: {
-      basic: pick(appConfig, BASIC_KEYS),
+      basic: { ...pick(appConfig, BASIC_KEYS), appearanceMode: await storage.get('appearanceMode') ?? 'system' },
       background: {
         ...pick(appConfig, BACKGROUND_KEYS),
         favoriteWallpapers: parseArray(rawFavorites).filter(isValidFavorite),
@@ -135,6 +140,8 @@ export async function createConfigExport(): Promise<ConfigFile> {
         links: parseArray(rawLinks).filter(isValidQuickLink),
         groups: parseArray(rawGroups).filter(isValidQuickGroup),
         widgets: parseArray(rawWidgets).filter(isValidQuickWidget),
+        cardAlignment: rawCardAlignment === 'center' ? 'center' : 'top',
+        glassCards: rawGlassCards === true || rawGlassCards === 'true',
         displayStyle: rawDisplayStyle === 'card' ? 'card' : 'pill',
       },
     },
@@ -215,6 +222,7 @@ export async function importConfig(config: ConfigFile): Promise<void> {
 
   await Promise.all([
     storage.set('appConfig', isChromeStorageAvailable() ? appConfig : JSON.stringify(appConfig)),
+    storage.set('appearanceMode', ['light', 'dark'].includes(String(config.settings.basic.appearanceMode)) ? config.settings.basic.appearanceMode : 'system'),
     storage.set('favoriteWallpapers', JSON.stringify(config.settings.background.favoriteWallpapers)),
     storage.set('jumpData', JSON.stringify(engines)),
     storage.set('defaultKey', defaultKey),
@@ -222,6 +230,8 @@ export async function importConfig(config: ConfigFile): Promise<void> {
     storage.set('quickLinkGroups', JSON.stringify(config.settings.quickAccess.groups)),
     storage.set('quickAccessWidgets', JSON.stringify(config.settings.quickAccess.widgets ?? [])),
     storage.set('showQuickLinks', String(config.settings.quickAccess.visible)),
+    storage.set('cardAlignment', config.settings.quickAccess.cardAlignment === 'center' ? 'center' : 'top'),
+    storage.set('glassCards', config.settings.quickAccess.glassCards === true),
     storage.set('quickLinkDisplayStyle', config.settings.quickAccess.displayStyle ?? 'pill'),
   ])
 }

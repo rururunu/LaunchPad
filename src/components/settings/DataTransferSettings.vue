@@ -149,42 +149,44 @@ const confirmImport = async () => {
 
 <style scoped>
 .transfer-page {
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: stretch;
 }
 
 .transfer-shell {
-  width: min(430px, 100%);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .transfer-card {
   min-width: 0;
-  height: 132px;
-  padding: 16px;
+  min-height: 64px;
+  padding: 12px 16px;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  border: 1px solid var(--ui-border);
-  border-radius: 14px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
   color: var(--ui-text);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0)),
-    var(--ui-surface);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
-  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s, background 0.16s;
+}
+
+.transfer-card + .transfer-card,
+.transfer-shell .upload-card {
+  box-shadow: inset 0 1px 0 rgba(60, 60, 67, 0.16);
 }
 
 .transfer-card:hover,
 .transfer-card.is-dragging {
-  border-color: rgba(37, 99, 235, 0.38);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
-  transform: translateY(-1px);
+  background: rgba(0, 122, 255, 0.06);
 }
 
 .transfer-card:disabled {
@@ -194,7 +196,7 @@ const confirmImport = async () => {
 }
 
 .transfer-card--import {
-  border-style: dashed;
+  border-style: none;
 }
 
 .transfer-card-icon {
@@ -308,13 +310,9 @@ const confirmImport = async () => {
 }
 
 @media (prefers-color-scheme: dark) {
-  .transfer-card {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0)),
-      var(--ui-surface);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
-  }
-
+  .transfer-shell { background: #2c2c2e; }
+  .transfer-card + .transfer-card,
+  .transfer-shell .upload-card { box-shadow: inset 0 1px 0 rgba(84, 84, 88, 0.65); }
   .transfer-card--import .transfer-card-icon {
     color: #34d399;
     background: rgba(52, 211, 153, 0.12);

@@ -655,27 +655,27 @@ onBeforeUnmount(() => {
 
 .switch {
   position: relative;
-  width: 40px;
-  height: 24px;
-  border-radius: 999px;
+  width: 42px;
+  height: 26px;
+  border-radius: 13px;
   border: none;
   padding: 0;
-  background: rgba(0, 0, 0, 0.12);
+  background: #e9e9eb;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.2s ease;
 }
 
 .switch--on {
-  background: var(--ui-accent);
+  background: #34c759;
 }
 
 .switch-thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
+  top: 2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -811,7 +811,7 @@ onBeforeUnmount(() => {
   }
 
   .switch--on {
-    background: var(--ui-accent);
+    background: #30d158;
   }
 
   .action-bar {

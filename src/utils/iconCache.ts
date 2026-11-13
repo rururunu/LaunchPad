@@ -452,3 +452,19 @@ export const loadCustomIcon = (url: string): Promise<string> => {
   remoteLoads.set(url, task);
   return task;
 };
+
+// Small synchronous palette cache avoids white-to-brand-color card flashes.
+export function getIconSurface(url: string): string {
+  try { return JSON.parse(localStorage.getItem('icon-surfaces-v1') || '{}')[url] || '#ffffff'; }
+  catch { return '#ffffff'; }
+}
+export function saveIconSurface(url: string, color: string): void {
+  try {
+    const entries = JSON.parse(localStorage.getItem('icon-surfaces-v1') || '{}');
+    delete entries[url];
+    entries[url] = color;
+    const keys = Object.keys(entries);
+    for (const key of keys.slice(0, Math.max(0, keys.length - 300))) delete entries[key];
+    localStorage.setItem('icon-surfaces-v1', JSON.stringify(entries));
+  } catch { /* A full cache must not affect icon rendering. */ }
+}

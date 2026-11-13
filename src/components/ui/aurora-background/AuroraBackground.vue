@@ -50,7 +50,7 @@ const props = withDefaults(defineProps<AuroraBackgroundProps>(), {
           after:absolute 
           after:inset-0 
           after:[background-image:var(--white-gradient),var(--aurora)]
-          after:dark:[background-image:var(--dark-gradient),var(--aurora)]
+
           after:[background-size:200%,_100%]
           after:[background-attachment:fixed] 
           after:mix-blend-difference;
@@ -71,5 +71,8 @@ const props = withDefaults(defineProps<AuroraBackgroundProps>(), {
       350% 50%,
       350% 50%;
   }
+}
+@media (prefers-color-scheme: dark) {
+  .aurora-background-gradient-after::after { background-image: var(--dark-gradient), var(--aurora); }
 }
 </style>

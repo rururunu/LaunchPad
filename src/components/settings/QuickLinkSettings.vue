@@ -67,10 +67,30 @@
         </div>
       </div>
 
-      <label v-if="quickLinkDisplayStyle === 'card'" class="quick-label-toggle">
-        <span>{{ t('links.showNames') }}</span>
-        <input type="checkbox" :checked="showCardLabels" @change="toggleCardLabels" />
-      </label>
+      <div v-if="quickLinkDisplayStyle === 'card'" class="quick-display-row">
+        <div class="quick-display-copy">
+          <span class="quick-display-title">{{ t('links.cardAlignment') }}</span>
+          <span class="quick-display-desc">{{ t('links.hiddenCentered') }}</span>
+        </div>
+        <div class="quick-display-switch" role="group" :aria-label="t('links.cardAlignment')">
+          <button v-for="alignment in (['top', 'center'] as const)" :key="alignment" type="button"
+            class="quick-display-option" :class="{ 'quick-display-option--active': cardAlignment === alignment }"
+            :aria-pressed="cardAlignment === alignment" @click="selectCardAlignment(alignment)">
+            {{ t(alignment === 'top' ? 'links.alignTop' : 'links.alignCenter') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="apple-group quick-label-group">
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('links.glassCards') }}</span>
+          <input type="checkbox" role="switch" class="apple-switch" :checked="glassCards" @change="toggleGlassCards" />
+        </label>
+        <label class="apple-row">
+          <span class="apple-row-label">{{ t('links.showNames') }}</span>
+          <input type="checkbox" role="switch" class="apple-switch" :checked="showCardLabels" @change="toggleCardLabels" />
+        </label>
+      </div>
 
       <div class="quick-group-list">
         <section
@@ -94,15 +114,13 @@
             />
             <span v-else class="quick-group-label">{{ t('links.ungrouped') }}</span>
             <span class="quick-group-count">{{ collection.links.length }}</span>
-            <select
+            <AppleMenu
               v-if="collection.group && quickLinkDisplayStyle === 'card'"
-              class="settings-select quick-size-switch"
-              :value="collection.group.cardSize ?? 'small'"
+              :model-value="collection.group.cardSize ?? 'small'"
+              :groups="cardSizeGroups"
               :aria-label="t('links.groupSize')"
-              @change="setGroupCardSize(collection.group, $event)"
-            >
-              <option v-for="option in cardSizeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
+              @update:model-value="setGroupCardSize(collection.group, $event)"
+            />
             <button
               v-if="collection.group"
               type="button"
@@ -288,6 +306,7 @@ import CustomWidgetSettings from '@/components/widgets/CustomWidgetSettings.vue'
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import QuickLinkChip from '@/components/ui/QuickLinkChip.vue';
+import AppleMenu from '@/components/ui/AppleMenu.vue';
 import { useNotification } from '@/composables/useNotification';
 import { useI18n } from '@/i18n';
 import { useQuickLinks } from '@/composables/useQuickLinks';
@@ -309,6 +328,10 @@ const {
   saveQuickLinks,
   saveQuickLinkGroups,
   quickLinkDisplayStyle,
+  glassCards,
+  cardAlignment,
+  saveCardAlignment,
+  saveGlassCards,
   loadQuickLinkDisplayStyle,
   saveQuickLinkDisplayStyle,
 } = useQuickLinks();
@@ -331,6 +354,9 @@ const cardSizeOptions = computed<Array<{ value: QuickCardSize; label: string }>>
   { value: 'medium', label: t('links.medium') },
   { value: 'large', label: t('links.large') },
 ]);
+const cardSizeGroups = computed(() => [{
+  options: cardSizeOptions.value.map((option) => ({ value: option.value, label: option.label })),
+}]);
 
 const RECOMMENDATION_GROUPS: QuickLinkRecommendation['group'][] = [
   'personal', 'trending', 'popular', 'cn', 'dev', 'ai', 'media',
@@ -423,10 +449,22 @@ const selectDisplayStyle = async (style: QuickLinkDisplayStyle) => {
 const setLinkCardSize = async (link: QuickLink, size: QuickCardSize) => {
   delete link.gridSize; link.cardSize = size; await saveQuickLinks(quickLinks.value);
 };
-const setGroupCardSize = async (group: QuickLinkGroup, event: Event) => {
+const setGroupCardSize = async (group: QuickLinkGroup, size: QuickCardSize) => {
   delete group.gridSize;
-  group.cardSize = (event.target as HTMLSelectElement).value as QuickCardSize;
+  group.cardSize = size;
   await saveQuickLinkGroups(quickLinkGroups.value);
+};
+const selectCardAlignment = async (value: 'top' | 'center') => {
+  try { await saveCardAlignment(value); }
+  catch (reason) { error(t('links.displaySaveFailed'), String(reason)); }
+};
+const toggleGlassCards = async (event: Event) => {
+  try {
+    const enabled = (event.target as HTMLInputElement).checked;
+    if (enabled) await saveQuickLinkDisplayStyle('card');
+    await saveGlassCards(enabled);
+  }
+  catch (reason) { error(t('links.displaySaveFailed'), String(reason)); }
 };
 const toggleCardLabels = async (event: Event) => {
   await saveShowCardLabels((event.target as HTMLInputElement).checked);
@@ -694,14 +732,20 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--ui-border);
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: #fff;
 }
 
 .quick-display-copy { display: flex; flex-direction: column; gap: 3px; }
-.quick-display-title { color: var(--ui-text-secondary); font-size: 13px; font-weight: 600; }
+.quick-display-title { color: #1d1d1f; font-size: 15px; font-weight: 400; }
+
+@media (prefers-color-scheme: dark) {
+  .quick-display-row { background: #2c2c2e; }
+  .quick-display-title { color: #f5f5f7; }
+}
 .quick-display-desc { color: var(--ui-text-muted); font-size: 11px; }
 
 .quick-display-switch {
@@ -756,8 +800,7 @@ onMounted(async () => {
 }
 
 .quick-widgets-heading > div { display: flex; flex-direction: column; gap: 3px; }
-.quick-label-toggle { min-height: 34px; margin-top: 8px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--ui-border); border-radius: 8px; color: var(--ui-text-secondary); background: var(--ui-surface); font-size: 12px; }
-.quick-label-toggle input { width: 16px; height: 16px; accent-color: var(--ui-accent); }
+.quick-label-group { margin-top: 8px; }
 .quick-widget-catalog, .quick-widget-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .quick-widget-add {
   min-height: 30px;

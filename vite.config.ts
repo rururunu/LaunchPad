@@ -15,6 +15,22 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  css: { postcss: { plugins: [{
+    postcssPlugin: 'explicit-appearance',
+    AtRule: { media(rule) {
+      const match = rule.params.match(/^\(prefers-color-scheme:\s*(dark|light)\)$/);
+      if (!match) return;
+      rule.walkRules(child => {
+        child.selectors = child.selectors.map(selector => {
+          const theme = `:where(html[data-theme="${match[1]}"])`;
+          return /^(?:html|:root)(?=[\s.#[:>+~]|$)/.test(selector)
+            ? selector.replace(/^(?:html|:root)/, theme)
+            : `${theme} ${selector}`;
+        });
+      });
+      rule.replaceWith(...rule.nodes);
+    } },
+  }] } },
   build: { rollupOptions: { input: { main: path.resolve(__dirname, "index.html"), overlay: path.resolve(__dirname, "overlay.html"), quickAccess: path.resolve(__dirname, "quick-access.html") } } },
   resolve: {
     alias: {

@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, getCurrentInstance } from 'vue';
 import { isChromeStorageAvailable, storage } from '@/utils/storage';
 import { loadImage, clearImageCache } from '@/utils/imageCache';
 import {
@@ -6,6 +6,8 @@ import {
     resolveWallpaperUrl,
     type WallpaperSourceId,
 } from '@/utils/wallpaperSources';
+import { normalizeDateFontSize } from '@/utils/clockAppearance';
+import { ensureClockFont } from '@/utils/clockFonts';
 
 export type BackgroundType = 'none' | 'source' | 'custom' | 'color';
 
@@ -36,6 +38,9 @@ const use24Hour = ref<boolean>(true);
 const clockFont = ref<string>('Inter');
 const clockFontSize = ref<number>(96);
 const clockFontWeight = ref<number>(700);
+const dateFontSize = ref<number>(14);
+const searchGlass = ref<boolean>(false);
+const pageFont = ref<string>('system-ui');
 const useCustomColor = ref<boolean>(false);
 
 const MAX_WALLPAPER_UNDO = 30;
@@ -101,6 +106,9 @@ interface AppConfig {
     clockFont: string;
     clockFontSize: number;
     clockFontWeight: number;
+    dateFontSize: number;
+    searchGlass: boolean;
+    pageFont: string;
     useCustomColor: boolean;
 }
 
@@ -123,6 +131,9 @@ const DEFAULT_CONFIG: AppConfig = {
     clockFont: 'Inter',
     clockFontSize: 96,
     clockFontWeight: 700,
+    dateFontSize: 14,
+    searchGlass: false,
+    pageFont: 'system-ui',
     useCustomColor: false,
 };
 
@@ -243,8 +254,13 @@ export function useWallpaper() {
             showDate.value = config.showDate;
             use24Hour.value = config.use24Hour;
             clockFont.value = config.clockFont || 'Inter';
+            ensureClockFont(clockFont.value);
+            pageFont.value = config.pageFont || 'system-ui';
+            ensureClockFont(pageFont.value);
             clockFontSize.value = config.clockFontSize ?? 96;
             clockFontWeight.value = config.clockFontWeight ?? 700;
+            dateFontSize.value = normalizeDateFontSize(config.dateFontSize);
+            searchGlass.value = config.searchGlass === true;
             useCustomColor.value = config.useCustomColor ?? false;
             
             if ((config.wallpaperType === 'custom' || config.wallpaperType === 'source') && themeColor.value === '#495057') {
@@ -252,13 +268,10 @@ export function useWallpaper() {
             }
 
             if (config.wallpaperUrl && config.wallpaperType !== 'none') {
-                try {
-                    const cachedUrl = await loadImage(config.wallpaperUrl);
-                    wallpaperUrl.value = cachedUrl;
-                } catch (error) {
-                    console.error('加载缓存壁纸失败:', error);
-                    wallpaperUrl.value = config.wallpaperUrl;
-                }
+                const requestedUrl = config.wallpaperUrl;
+                void loadImage(requestedUrl).then(cachedUrl => {
+                    if (wallpaperUrl.value === requestedUrl) wallpaperUrl.value = cachedUrl;
+                }).catch(error => console.error('加载缓存壁纸失败:', error));
             }
 
             if (originalWallpaperUrl.value) {
@@ -319,6 +332,9 @@ export function useWallpaper() {
                 clockFont: clockFont.value,
                 clockFontSize: clockFontSize.value,
                 clockFontWeight: clockFontWeight.value,
+                dateFontSize: dateFontSize.value,
+                searchGlass: searchGlass.value,
+                pageFont: pageFont.value,
                 useCustomColor: useCustomColor.value
             };
             
@@ -550,6 +566,7 @@ export function useWallpaper() {
 
     const updateClockFont = async (font: string) => {
         clockFont.value = font;
+        ensureClockFont(font);
         await saveState();
     };
 
@@ -558,8 +575,24 @@ export function useWallpaper() {
         await saveState();
     };
 
+    const updateDateFontSize = async (size: number) => {
+        dateFontSize.value = normalizeDateFontSize(size);
+        await saveState();
+    };
+
+    const updateSearchGlass = async (enabled: boolean) => {
+        searchGlass.value = enabled;
+        await saveState();
+    };
+
     const updateClockFontWeight = async (weight: number) => {
         clockFontWeight.value = weight;
+        await saveState();
+    };
+
+    const updatePageFont = async (font: string) => {
+        pageFont.value = font;
+        ensureClockFont(font);
         await saveState();
     };
 
@@ -568,7 +601,7 @@ export function useWallpaper() {
         await saveState();
     };
 
-    onMounted(() => {
+    if (getCurrentInstance()) onMounted(() => {
         loadState();
     });
 
@@ -591,6 +624,9 @@ export function useWallpaper() {
         clockFont,
         clockFontSize,
         clockFontWeight,
+        dateFontSize,
+        searchGlass,
+        pageFont,
         useCustomColor,
         canRestorePreviousWallpaper,
         isRestoringWallpaper,
@@ -613,6 +649,9 @@ export function useWallpaper() {
         updateClockFont,
         updateClockFontSize,
         updateClockFontWeight,
+        updateDateFontSize,
+        updateSearchGlass,
+        updatePageFont,
         updateUseCustomColor,
         getWallpaperStyle,
         toggleMask,

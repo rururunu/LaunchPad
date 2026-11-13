@@ -3,23 +3,26 @@
     v-if="quickLinks.length || customWidgets.length"
     ref="quickLinksRef"
     class="quick-links"
-    :class="[`quick-links--${quickLinkDisplayStyle}`, { 'quick-links--readonly': readOnly }]"
+    :class="[`quick-links--${quickLinkDisplayStyle}`, { 'quick-links--readonly': readOnly, 'quick-links--grid-dragging': !!draggingTopKey && quickLinkDisplayStyle === 'card', 'quick-links--glass': glassCards && quickLinkDisplayStyle === 'card' }]"
     :aria-label="t('quick.label')"
     @wheel="onPageWheel"
+    @pointerdown.capture="rememberDragAnchor"
     @dragover.prevent="onTopContainerDragOver"
     @drop.prevent="onTopContainerDrop"
   >
+    <div v-if="gridDrop" class="quick-grid-drop" :style="{ gridColumn: `${(gridDrop.col - 1) * 2 + 1 + (cardPages.columnOffsets.get(currentPage) ?? 0)} / span ${gridDrop.cols * 2}`, gridRow: `${gridDrop.row} / span ${gridDrop.rows}` }" />
     <template v-for="item in visibleTopItems" :key="item.key">
       <div
         v-if="item.kind === 'link'"
         class="quick-link-item quick-link-draggable quick-top-item"
         :class="[topItemClasses(item.key), `quick-card-size--${item.link.cardSize ?? 'small'}`]"
         :style="gridStyle(item.kind === 'link' ? item.link : item.group)"
-        :draggable="!readOnly"
+        :data-drag-key="item.key"
+        :draggable="!readOnly && quickLinkDisplayStyle !== 'card'"
         @dragstart="onTopDragStart(item.key, item.link, $event)"
         @dragover.prevent.stop="onTopItemDragOver(item.key, $event)"
         @drop.prevent.stop="onTopItemDrop(item.key)"
-        @dragend="finishDrag"
+        @dragend="onTopNativeDragEnd"
         @contextmenu.prevent.stop="openContextMenu(item.link, $event)"
       >
         <QuickLinkChip
@@ -46,11 +49,12 @@
           },
         ]"
         :style="gridStyle(item.kind === 'link' ? item.link : item.group)"
-        :draggable="!readOnly"
+        :data-drag-key="item.key"
+        :draggable="!readOnly && quickLinkDisplayStyle !== 'card'"
         @dragstart="onTopDragStart(item.key, undefined, $event)"
         @dragover.prevent.stop="onTopItemDragOver(item.key, $event)"
         @drop.prevent.stop="onTopItemDrop(item.key)"
-        @dragend="finishDrag"
+        @dragend="onTopNativeDragEnd"
       >
         <button
           type="button"
@@ -58,7 +62,6 @@
           :class="{ 'quick-group-chip--card': quickLinkDisplayStyle === 'card' }"
           draggable="false"
           :aria-expanded="expandedGroupId === item.group.id"
-          @pointerdown.stop
           @click.stop="toggleGroup(item.group.id, $event)"
         >
           <span v-if="quickLinkDisplayStyle !== 'card' || showCardLabels" class="quick-group-chip-label" :title="item.group.label">{{ item.group.label }}</span>
@@ -75,10 +78,10 @@
       </div>
     </template>
 
-    <article v-for="widget in visibleWidgets" :key="widget.id" class="quick-widget-card" @dragover.prevent.stop="onTopItemDragOver(`widget:${widget.id}`, $event)" @drop.prevent.stop="onTopItemDrop(`widget:${widget.id}`)" :style="gridStyle(widget)" :class="topItemClasses(`widget:${widget.id}`)" @contextmenu.prevent.stop="openCardMenu('widget', widget.id, widget.title || t('quick.widget'), $event)">
-      <CustomWidgetFrame :code="widget.code || ''" :title="widget.title || t('quick.widget')" :widget-id="widget.id" />
+    <article v-for="widget in visibleWidgets" :key="widget.id" class="quick-widget-card" :data-drag-key="`widget:${widget.id}`" @dragover.prevent.stop="onTopItemDragOver(`widget:${widget.id}`, $event)" @drop.prevent.stop="onTopItemDrop(`widget:${widget.id}`)" :style="gridStyle(widget)" :class="topItemClasses(`widget:${widget.id}`)" @contextmenu.prevent.stop="openCardMenu('widget', widget.id, widget.title || t('quick.widget'), $event)">
+      <CustomWidgetFrame :glass="glassCards" :code="widget.code || ''" :title="widget.title || t('quick.widget')" :widget-id="widget.id" />
       <button v-if="widget.popupCode" class="widget-open" :aria-label="t('quick.openWidget', { title: widget.title || t('quick.widget') })" @click="openedWidget = widget" />
-      <button v-if="!readOnly" class="widget-drag" draggable="true" :aria-label="t('quick.dragWidget')" @dragstart="onTopDragStart(`widget:${widget.id}`, undefined, $event)" @dragend="finishDrag">⠿</button>
+      <button v-if="!readOnly" class="widget-drag" type="button" draggable="false" :aria-label="t('quick.dragWidget')">⠿</button>
     </article>
     <Transition name="quick-menu">
       <section
@@ -225,6 +228,7 @@ import { removeWidgetData } from '@/utils/widgetData';
 import type { QuickAccessWidgetInstance } from '@/composables/useQuickLinks';
 import { Icon } from '@iconify/vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import Sortable, { type SortableEvent } from 'sortablejs';
 import IconEditor from '@/components/ui/IconEditor.vue';
 import FaviconImg from '@/components/ui/FaviconImg.vue';
 import QuickLinkChip from '@/components/ui/QuickLinkChip.vue';
@@ -239,6 +243,7 @@ const {
   quickLinkGroups,
   quickAccessWidgets,
   showCardLabels,
+  glassCards,
   loadShowCardLabels,
   loadQuickLinks,
   saveQuickLinks,
@@ -350,7 +355,8 @@ const openedWidget = ref<QuickAccessWidgetInstance | null>(null);
 const desktopKeys = computed(() => {
   const cards = topLevelItems.value.map((item, index) => ({ key: item.key, position: item.position, fallback: index }));
   if (quickLinkDisplayStyle.value === 'card') cards.push(...customWidgets.value.map((w, index) => ({ key: `widget:${w.id}`, position: w.position, fallback: cards.length + index })));
-  return cards.sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) || a.fallback - b.fallback).map(item => item.key);
+  const order = cards.sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER) || a.fallback - b.fallback).map(item => item.key);
+  return order;
 });
 
 const currentPage = ref(0);
@@ -360,7 +366,11 @@ const cardPages = computed(() => {
   const sizes = new Map<string, GridSize>();
   topLevelItems.value.forEach(item => sizes.set(item.key, gridSize(item.kind === 'link' ? item.link : item.group)));
   customWidgets.value.forEach(item => sizes.set(`widget:${item.id}`, gridSize(item)));
-  return paginateCards(desktopKeys.value.map(key => ({ key, ...sizes.get(key)! })), gridColumns.value);
+  const placements = new Map([
+    ...topLevelItems.value.map(item => [item.key, (item.kind === 'link' ? item.link : item.group).gridPlacement] as const),
+    ...customWidgets.value.map(item => [`widget:${item.id}`, item.gridPlacement] as const),
+  ]);
+  return paginateCards(desktopKeys.value.map(key => ({ key, ...sizes.get(key)!, placement: placements.get(key) })), gridColumns.value);
 });
 const visibleWidgets = computed(() => quickLinkDisplayStyle.value === 'card' ? customWidgets.value.filter(w => cardPages.value.positions.get(`widget:${w.id}`)?.page === currentPage.value) : []);
 const visibleTopItems = computed(() => quickLinkDisplayStyle.value === 'card' ? topLevelItems.value.filter(item => cardPages.value.positions.get(item.key)?.page === currentPage.value) : topLevelItems.value);
@@ -440,10 +450,10 @@ const resetDrag = () => {
   innerDropTarget.value = null;
 };
 
-const prepareDrag = (event: DragEvent, value: string) => {
+const prepareDrag = (event: DragEvent | null, value: string) => {
   closeContextMenu();
   suppressClick.value = true;
-  if (event.dataTransfer) {
+  if (event?.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', value);
   }
@@ -451,6 +461,7 @@ const prepareDrag = (event: DragEvent, value: string) => {
 
 const onTopDragStart = (key: string, link: QuickLink | undefined, event: DragEvent) => {
   if (props.readOnly) { event.preventDefault(); return; }
+  if (quickLinkDisplayStyle.value === 'card') { event.preventDefault(); return; }
   expandedGroupId.value = null;
   draggingTopKey.value = key;
   draggingId.value = link?.id ?? null;
@@ -462,6 +473,10 @@ const onInnerDragStart = (link: QuickLink, event: DragEvent) => {
   draggingId.value = link.id;
   draggingTopKey.value = null;
   prepareDrag(event, `link:${link.id}`);
+};
+
+const onTopNativeDragEnd = () => {
+  if (quickLinkDisplayStyle.value !== 'card') finishDrag();
 };
 
 const finishDrag = () => {
@@ -521,6 +536,7 @@ const getDraggingGroupedLink = () => {
 };
 
 const onTopItemDragOver = (key: string, event: DragEvent) => {
+  if (quickLinkDisplayStyle.value === 'card') return;
   if (!draggingTopKey.value && !getDraggingGroupedLink()) return;
   if (draggingTopKey.value === key) return;
   topDropTarget.value = { key, side: getDropSide(event) };
@@ -545,6 +561,90 @@ const saveTopLevelOrder = async (keys: string[]) => {
   ]);
 };
 
+let dragAnchor = { x: 0, y: 0 };
+let gridDragCancelled = false;
+let gridDragGeneration = 0;
+const rememberDragAnchor = (event: PointerEvent) => {
+  const item = (event.target as Element).closest<HTMLElement>('[data-drag-key]');
+  if (!item || item.parentElement !== quickLinksRef.value) return;
+  const rect = item.getBoundingClientRect();
+  dragAnchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+};
+const gridDrop = ref<{ col: number; row: number; cols: number; rows: number } | null>(null);
+let cardSortable: Sortable | null = null;
+const trackGridDrop = (event: MouseEvent | TouchEvent | PointerEvent) => {
+  const key = draggingTopKey.value;
+  const nav = quickLinksRef.value;
+  const cell = key && cardPages.value.positions.get(key);
+  if (!nav || !cell || gridDragCancelled) return;
+  const point = 'touches' in event ? event.touches[0] : event;
+  if (!point) return;
+  const rect = nav.getBoundingClientRect();
+  const css = getComputedStyle(nav);
+  const gap = parseFloat(css.columnGap) || 0;
+  const stepX = (rect.width + gap) / gridColumns.value;
+  const stepY = parseFloat(css.gridAutoRows) + (parseFloat(css.rowGap) || 0);
+  const offset = (cardPages.value.columnOffsets.get(currentPage.value) ?? 0) * stepX / 2;
+  if (point.clientX < rect.left || point.clientX > rect.right || point.clientY < rect.top || point.clientY > rect.top + 7 * stepY) { gridDrop.value = null; return; }
+  gridDrop.value = {
+    col: Math.max(1, Math.min(gridColumns.value - cell.cols + 1, Math.round((point.clientX - dragAnchor.x - rect.left - offset) / stepX) + 1)),
+    row: Math.max(1, Math.min(8 - cell.rows, Math.round((point.clientY - dragAnchor.y - rect.top) / stepY) + 1)),
+    cols: cell.cols, rows: cell.rows,
+  };
+};
+const mountCardSortable = () => {
+  cardSortable?.destroy();
+  cardSortable = null;
+  if (props.readOnly || quickLinkDisplayStyle.value !== 'card' || !quickLinksRef.value) return;
+  cardSortable = Sortable.create(quickLinksRef.value, {
+    draggable: '[data-drag-key]', sort: false, forceFallback: true,
+    animation: 220, delay: 180, delayOnTouchOnly: true, touchStartThreshold: 6,
+    fallbackTolerance: 5, fallbackOnBody: false,
+    ghostClass: 'quick-sortable-ghost', chosenClass: 'quick-sortable-chosen', dragClass: 'quick-sortable-drag',
+    filter: 'input, textarea, select, iframe, .widget-open', preventOnFilter: false,
+    onStart: (event: SortableEvent) => {
+      gridDragGeneration++;
+      gridDragCancelled = false;
+      draggingTopKey.value = event.item.dataset.dragKey ?? null;
+      suppressClick.value = true;
+      closeContextMenu();
+      const cell = draggingTopKey.value && cardPages.value.positions.get(draggingTopKey.value);
+      gridDrop.value = cell ? { col: cell.col, row: cell.row, cols: cell.cols, rows: cell.rows } : null;
+      document.addEventListener('pointermove', trackGridDrop, true);
+      document.addEventListener('mousemove', trackGridDrop, true);
+      document.addEventListener('touchmove', trackGridDrop, { passive: true, capture: true });
+    },
+    onEnd: async () => {
+      const generation = gridDragGeneration;
+      document.removeEventListener('pointermove', trackGridDrop, true);
+      document.removeEventListener('mousemove', trackGridDrop, true);
+      document.removeEventListener('touchmove', trackGridDrop, true);
+      const key = draggingTopKey.value;
+      const drop = gridDragCancelled ? null : gridDrop.value;
+      gridDrop.value = null;
+      resetDrag();
+      if (key && drop) {
+        const placements = new Map([...cardPages.value.positions].map(([id, cell]) => [id, { page: cell.page, col: cell.col, row: cell.row, columns: gridColumns.value }]));
+        // Let intersecting cards auto-pack, keeping every other card in its existing cell.
+        for (const [id, cell] of cardPages.value.positions) {
+          if (id !== key && cell.page === currentPage.value && cell.col < drop.col + drop.cols && cell.col + cell.cols > drop.col && cell.row < drop.row + drop.rows && cell.row + cell.rows > drop.row) placements.delete(id);
+        }
+        placements.set(key, { page: currentPage.value, col: drop.col, row: drop.row, columns: gridColumns.value });
+        try {
+          await Promise.all([
+            saveQuickLinks(quickLinks.value.map(item => ({ ...item, gridPlacement: placements.get(`link:${item.id}`) }))),
+            saveQuickLinkGroups(quickLinkGroups.value.map(item => ({ ...item, gridPlacement: placements.get(`group:${item.id}`) }))),
+            saveQuickAccessWidgets(quickAccessWidgets.value.map(item => ({ ...item, gridPlacement: placements.get(`widget:${item.id}`) }))),
+          ]);
+        } catch { error(t('quick.orderSaveFailed'), t('quick.retryLater')); }
+      }
+      window.setTimeout(() => {
+        if (generation === gridDragGeneration) suppressClick.value = false;
+      }, 100);
+    },
+  });
+};
+
 const moveTopItem = async (targetKey: string, side: 'before' | 'after') => {
   const sourceKey = draggingTopKey.value;
   if (!sourceKey) return;
@@ -565,6 +665,7 @@ const moveTopItem = async (targetKey: string, side: 'before' | 'after') => {
 };
 
 const onTopItemDrop = async (key: string) => {
+  if (quickLinkDisplayStyle.value === 'card') return;
   if (key === `group:${groupDropTargetId.value}` && draggingId.value) {
     await moveLinkIntoGroup(groupDropTargetId.value);
     return;
@@ -578,6 +679,7 @@ const onTopItemDrop = async (key: string) => {
 };
 
 const onTopContainerDragOver = (event: DragEvent) => {
+  if (quickLinkDisplayStyle.value === 'card') return;
   // Keep the last item-level target while the pointer is over the visual insertion gap.
   if (event.target === event.currentTarget && groupHoverId.value) cancelGroupHover();
   if ((draggingTopKey.value || getDraggingGroupedLink()) && event.target === event.currentTarget) {
@@ -586,6 +688,7 @@ const onTopContainerDragOver = (event: DragEvent) => {
 };
 
 const onTopContainerDrop = async () => {
+  if (quickLinkDisplayStyle.value === 'card') return;
   const target = topDropTarget.value;
   if (!target) return;
   if (getDraggingGroupedLink()) {
@@ -818,7 +921,11 @@ const removeLinkById = async (link: QuickLink) => {
 };
 
 const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') closeOverlays();
+  if (event.key === 'Escape') {
+    gridDragCancelled = true;
+    gridDrop.value = null;
+    closeOverlays();
+  }
 };
 
 watch(
@@ -829,6 +936,7 @@ watch(
 );
 
 onMounted(() => {
+  void nextTick(mountCardSortable);
   loadQuickLinks();
   loadQuickAccessWidgets();
   loadShowCardLabels();
@@ -841,12 +949,22 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  cardSortable?.destroy();
+  cardSortable = null;
+  document.removeEventListener('pointermove', trackGridDrop, true);
+      document.removeEventListener('mousemove', trackGridDrop, true);
+  document.removeEventListener('touchmove', trackGridDrop, true);
   cancelGroupHover();
   window.removeEventListener('pointerdown', closeOverlays);
   window.removeEventListener('keydown', onKeydown);
   window.removeEventListener('resize', closeOverlays);
   window.removeEventListener('resize', updateGridColumns);
   window.removeEventListener('scroll', closeOverlays, true);
+});
+
+watch([quickLinkDisplayStyle, () => props.readOnly, () => visibleTopItems.value.length, () => visibleWidgets.value.length], async () => {
+  await nextTick();
+  mountCardSortable();
 });
 </script>
 
@@ -1593,7 +1711,7 @@ onBeforeUnmount(() => {
 }
 .quick-links--card > .quick-top-item :deep(.quick-link-chip--card),
 .quick-links--card > .quick-top-item .quick-group-chip--card { min-height: 0; height: 100%; }
-.quick-links--card > .quick-widget-card > :first-child { min-height: 0; height: 100%; overflow: auto; }
+.quick-links--card > .quick-widget-card > :first-child { min-height: 0; height: 100%; overflow: hidden; }
 @media (max-width: 900px) { .quick-links--card { --grid-columns: 6; grid-auto-rows: 76px; } }
 @media (max-width: 480px) { .quick-links--card { --grid-columns: 4; grid-auto-rows: 68px; gap: 10px; } }
 
@@ -1660,6 +1778,10 @@ onBeforeUnmount(() => {
 /* Keep reading order identical to the stored desktop order. */
 .quick-links--card > .quick-top-item,
 .quick-links--card > .quick-widget-card { position: relative; cursor: grab; }
+.quick-links--card > .quick-top-item,
+.quick-links--card > .quick-widget-card { touch-action: none; user-select: none; }
+.quick-links--card > .quick-top-item,
+.quick-links--card > .quick-widget-card { transition: grid-column .18s cubic-bezier(.2,.8,.2,1), grid-row .18s cubic-bezier(.2,.8,.2,1), opacity .18s ease, filter .18s ease; }
 .quick-links--card > .quick-top-item:active,
 .quick-links--card > .quick-widget-card:active { cursor: grabbing; }
 .quick-links--card > .quick-top-item--dragging { opacity: .35; transform: none; }
@@ -1669,6 +1791,10 @@ onBeforeUnmount(() => {
 .quick-links--card > .quick-drag-gap-after::after { content: ''; position: absolute; top: 6px; bottom: 6px; width: 3px; border-radius: 3px; background: #007aff; pointer-events: none; }
 .quick-links--card > .quick-drag-gap-before::before { left: -8px; }
 .quick-links--card > .quick-drag-gap-after::after { right: -8px; }
+
+.quick-sortable-ghost { opacity: .32; filter: saturate(.75); outline: 1px dashed rgba(0, 122, 255, .5); outline-offset: 2px; }
+.quick-sortable-chosen { z-index: 4; cursor: grabbing !important; }
+.quick-sortable-drag { opacity: 1 !important; cursor: grabbing !important; filter: drop-shadow(0 18px 28px rgba(0,0,0,.24)); }
 
 .card-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 20px auto; width: fit-content; padding: 6px; border: 1px solid #ffffff40; border-radius: 999px; background: rgba(245,245,247,.92); color: #1d1d1f; box-shadow: 2px 4px 12px #00000014; font-size: 13px; font-variant-numeric: tabular-nums; }
 .card-pagination button { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
@@ -1697,4 +1823,50 @@ onBeforeUnmount(() => {
 }
 @media (prefers-reduced-motion: reduce) { .widget-drag { transition: none; } }
 .card-layout-options { max-height: 220px; overflow-y: auto; }
+/* Keep each brand tint while allowing the wallpaper to show through. */
+.quick-links--glass.quick-links--card :deep(.quick-link-chip--card),
+.quick-links--glass.quick-links--card :deep(a.quick-link-chip--card:hover) {
+  background: color-mix(in srgb, var(--logo-surface, #fff) 65%, transparent);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.32);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 6px 22px rgba(0,0,0,.12);
+}
+.quick-links--glass.quick-links--card .quick-group-chip--card,
+.quick-links--glass.quick-links--card > .quick-widget-card {
+  background: rgba(255,255,255,.65);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 6px 22px rgba(0,0,0,.12);
+}
+@media (prefers-color-scheme: dark) {
+  .quick-links--card .quick-group-chip--card,
+  .quick-links--card .quick-group-chip--card:hover,
+  .quick-links--card .quick-group-item--open .quick-group-chip--card {
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #f5f5f7;
+    background: #2c2c2e;
+  }
+  .quick-links--card > .quick-widget-card { background: #2c2c2e; }
+  .quick-links--glass.quick-links--card .quick-group-chip--card,
+  .quick-links--glass.quick-links--card > .quick-widget-card { background: rgba(28,28,30,.65); }
+  .quick-links--glass.quick-links--card :deep(.quick-link-chip--card),
+  .quick-links--glass.quick-links--card :deep(a.quick-link-chip--card:hover) {
+    background: color-mix(in srgb, var(--logo-surface, #2c2c2e) 30%, rgba(28, 28, 30, 0.62));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 22px rgba(0, 0, 0, 0.28);
+  }
+  .quick-links--glass.quick-links--card .quick-group-chip--card,
+  .quick-links--glass.quick-links--card > .quick-widget-card {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 22px rgba(0, 0, 0, 0.28);
+  }
+}
+</style>
+
+<style scoped>
+.quick-links--grid-dragging :deep(iframe) { pointer-events: none !important; }
+.widget-drag { touch-action: none; user-select: none; }
+.quick-grid-drop { pointer-events: none; z-index: 5; border: 2px solid #64a8ff; border-radius: 18px; background: #007aff26; box-shadow: 0 0 0 4px #007aff12; }
 </style>

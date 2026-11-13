@@ -6,9 +6,11 @@
 </template>
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useAppearance } from '@/composables/useAppearance';
+const { resolved } = useAppearance();
 import { getWidgetData, setWidgetData, subscribeWidgetData } from '@/utils/widgetData';
 
-const props = defineProps<{ code: string; title: string; widgetId?: string }>();
+const props = defineProps<{ code: string; title: string; widgetId?: string; glass?: boolean }>();
 const frame = ref<HTMLIFrameElement>();
 const source = '/widget-sandbox.html';
 const instance = Symbol('widget-frame');
@@ -20,11 +22,12 @@ let ready = false;
 function render() {
   ready = false;
   clearTimeout(readyTimer);
-  frame.value?.contentWindow?.postMessage({ type: 'widget-render', code: props.code }, '*');
+  frame.value?.contentWindow?.postMessage({ type: 'widget-render', code: props.code, glass: props.glass, theme: resolved.value }, '*');
   // 沙箱页注入的脚本会回报 ready；迟迟不来，说明内联脚本被拦截（通常是扩展清单还是旧的）
   readyTimer = setTimeout(() => { if (!ready) blocked.value = true; }, 2500);
 }
 watch(() => props.code, render);
+watch([() => props.glass, resolved], () => send({ type: 'appearance', glass: props.glass === true, theme: resolved.value }));
 
 const send = (message: Record<string, unknown>) => frame.value?.contentWindow?.postMessage({ lp: 1, ...message }, '*');
 
@@ -56,7 +59,7 @@ watch(() => props.widgetId, subscribe);
 onBeforeUnmount(() => { window.removeEventListener('message', onMessage); unsubscribe?.(); clearTimeout(readyTimer); });
 </script>
 <style scoped>
-.widget-frame { position: relative; width: 100%; height: 100%; }
+.widget-frame { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; }
 iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
 .blocked { position: absolute; inset: auto 8px 8px; margin: 0; padding: 6px 10px; border-radius: 10px; font-size: 11px; line-height: 1.4; color: #fff; background: rgba(255, 59, 48, 0.92); }
 </style>

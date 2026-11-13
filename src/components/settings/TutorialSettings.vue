@@ -115,25 +115,39 @@ const tips = computed(() => [
 
 .block-title {
   margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ui-text-muted);
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #6e6e73;
 }
 
 .rows {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--ui-border);
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .row {
+  position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--ui-border);
+  min-height: 44px;
+  padding: 8px 16px;
+}
+
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: rgba(60, 60, 67, 0.16);
 }
 
 .row-keys {
@@ -213,6 +227,15 @@ const tips = computed(() => [
   color: var(--ui-text-secondary);
 }
 
+.tips,
+.guide-steps {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.guide-steps { padding-left: 32px; }
+
 .tips li::before {
   content: '';
   position: absolute;
@@ -223,6 +246,14 @@ const tips = computed(() => [
   border-radius: 50%;
   background: var(--ui-text-muted);
   opacity: 0.55;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rows,
+  .tips,
+  .guide-steps { background: #2c2c2e; }
+  .block-title { color: #98989d; }
+  .row + .row::before { background: rgba(84, 84, 88, 0.65); }
 }
 
 @media (max-width: 420px) {

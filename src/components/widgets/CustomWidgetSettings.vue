@@ -1,12 +1,13 @@
 <template>
-  <section class="settings-section">
-    <h3 class="settings-section-title">{{ t('widgets.title') }}</h3>
-    <p class="settings-hint">{{ t('widgets.hint') }}</p>
+  <section class="apple-section">
+    <h3 class="apple-header">{{ t('widgets.title') }}</h3>
+    <div class="apple-group">
+    <div class="apple-pad">
     <h4 class="gallery-title">{{ t('widgets.builtIn') }}</h4>
     <div class="gallery">
       <div v-for="tpl in WIDGET_TEMPLATES" :key="tpl.id" class="gallery-item">
         <div class="gallery-text"><strong>{{ t(`widgets.templates.${tpl.id}.title`) }}</strong><small>{{ t(`widgets.templates.${tpl.id}.description`) }}</small></div>
-        <button type="button" class="settings-btn" :disabled="saving" @click="addTemplate(tpl)">{{ t('widgets.add') }}</button>
+        <button type="button" class="gallery-add" :disabled="saving" @click="addTemplate(tpl)">{{ t('widgets.add') }}</button>
       </div>
     </div>
     <h4 v-if="custom.length" class="gallery-title">{{ t('widgets.added') }}</h4>
@@ -23,6 +24,9 @@
       <div class="widget-row"><button class="settings-btn settings-btn--primary" :disabled="saving">{{ t('widgets.save') }}</button><button type="button" class="settings-btn" @click="draft = null">{{ t('widgets.cancel') }}</button></div>
     </form>
     <WidgetPopup v-if="popup" :title="t('widgets.popupPreview')" :code="popup" @close="popup = ''" />
+    </div>
+    </div>
+    <p class="apple-footnote">{{ t('widgets.hint') }}</p>
   </section>
 </template>
 <script setup lang="ts">
@@ -91,10 +95,21 @@ onMounted(loadQuickAccessWidgets);
 </script>
 <style scoped>
 .widget-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }.widget-row span { flex: 1; }.widget-editor { display: flex; flex-direction: column; gap: 16px; padding: 16px; background: var(--ui-surface-soft); border-radius: 16px; }.bounds { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }textarea { min-height: 150px; resize: vertical; padding: 12px; border: 1px solid var(--ui-border); border-radius: 10px; font: 13px ui-monospace, monospace; background: var(--ui-surface); color: var(--ui-text); }.preview { height: 200px; overflow: hidden; border-radius: 18px; }
-.gallery-title { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--ui-text-muted); }
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.gallery-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-surface-soft); }
-.gallery-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.gallery-text strong { font-size: 14px; color: var(--ui-text); }
-.gallery-text small { font-size: 12px; line-height: 1.4; color: var(--ui-text-muted); }
+.gallery-title { margin: 4px 0 0; font-size: 13px; font-weight: 400; color: #6e6e73; }
+.gallery { display: flex; flex-direction: column; margin: 0 -16px; }
+.gallery-item { position: relative; display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 10px 16px; }
+.gallery-item + .gallery-item::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: rgba(60, 60, 67, 0.12); }
+.gallery-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.gallery-text strong { font-size: 15px; font-weight: 400; color: var(--ui-text); }
+.gallery-text small { font-size: 12px; line-height: 1.45; color: #6e6e73; }
+.gallery-add { flex: none; white-space: nowrap; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: #007aff; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.gallery-add:hover:not(:disabled) { background: #0071eb; }
+.gallery-add:disabled { opacity: 0.45; cursor: default; }
+.gallery-add:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+@media (prefers-color-scheme: dark) {
+  .gallery-title, .gallery-text small { color: #98989d; }
+  .gallery-item + .gallery-item::before { background: rgba(84, 84, 88, 0.65); }
+  .gallery-add { background: #0a84ff; }
+  .gallery-add:hover:not(:disabled) { background: #0077ed; }
+}
 </style>

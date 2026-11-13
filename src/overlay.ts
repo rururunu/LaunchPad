@@ -1,3 +1,4 @@
+import '@/composables/useAppearance';
 import { createApp } from 'vue';
 import OverlaySearch from './components/modes/OverlaySearch.vue';
 import { initI18n } from '@/i18n';

@@ -9,6 +9,7 @@ describe('buildWidgetPrompt', () => {
     expect(text).toContain('<p>hi</p>')
     expect(text).not.toContain('当前弹窗代码')
     expect(text).toContain('new Date()')
+    expect(text).toContain('不要把按钮、图标、菜单等界面放在右上角')
   })
 
   it('有弹窗代码时附上，缺省值回退', () => {

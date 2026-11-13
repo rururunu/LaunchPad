@@ -38,4 +38,6 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 3
 @import "tailwindcss";
 
 /* 跟随系统暗色模式（与 App.vue 中 prefers-color-scheme 保持一致） */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+@custom-variant dark {
+  :where(html[data-theme="dark"]) & { @slot; }
+}
