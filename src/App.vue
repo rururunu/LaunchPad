@@ -7,7 +7,7 @@ import NotificationContainer from './components/ui/notification/NotificationCont
 import SearchModeView from '@/components/modes/SearchModeView.vue'
 import { useWallpaper } from './composables/useWallpaper'
 import { storage } from '@/utils/storage'
-import { hydrateFaviconCache, refreshStaleFavicons } from '@/utils/iconCache'
+import { refreshStaleFavicons } from '@/utils/iconCache'
 import { useNotification } from '@/composables/useNotification'
 import { usePreferredColorScheme } from '@/composables/usePreferredColorScheme'
 import { getWallpaperSourceMeta, type WallpaperSourceId } from '@/utils/wallpaperSources'
@@ -198,7 +198,6 @@ onMounted(async () => {
     ] = await Promise.all([
       storage.get<string | boolean>(QUICK_LINKS_VISIBILITY_KEY),
       storage.get<string | FavoriteWallpaper[]>(FAVORITE_WALLPAPERS_KEY),
-      hydrateFaviconCache(),
       loadState(),
     ])
 
@@ -209,17 +208,16 @@ onMounted(async () => {
       favoriteWallpapers.value = parseFavoriteWallpapers(changes[FAVORITE_WALLPAPERS_KEY]?.newValue)
     })
 
-    let bookmarkUrls: string[] = []
-    if ((window as any).chrome?.bookmarks) {
-      const all = await (window as any).chrome.bookmarks.search({})
-      const valid = all.filter((b: any) => b.url)
-      bookmarkUrls = valid.map((b: any) => b.url as string)
-      await storage.set('cachedBookmarks', JSON.stringify(valid))
-    }
-
-    if (bookmarkUrls.length) {
-      refreshStaleFavicons(bookmarkUrls).catch(() => {})
-    }
+    setTimeout(() => {
+      void (async () => {
+        if (!(window as any).chrome?.bookmarks) return
+        const all = await (window as any).chrome.bookmarks.search({})
+        const valid = all.filter((b: any) => b.url)
+        const bookmarkUrls = valid.map((b: any) => b.url as string)
+        await storage.set('cachedBookmarks', JSON.stringify(valid))
+        if (bookmarkUrls.length) refreshStaleFavicons(bookmarkUrls).catch(() => {})
+      })()
+    }, 1500)
 
     const [savedType, savedUrl] = await Promise.all([
       storage.get('wallpaperType'),

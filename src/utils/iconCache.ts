@@ -378,37 +378,15 @@ export const refreshStaleFavicons = async (
 };
 
 /**
- * 从存储恢复 favicon 到内存（含过期项，便于瞬间展示）
+ * 只读取指定网址的图标缓存。不要用 storage.get(null)：壁纸和 favicon 的 data URL 会把整库读进主线程。
  */
-export const hydrateFaviconCache = async (): Promise<void> => {
+export const hydrateFaviconCache = async (urls: string[]): Promise<void> => {
+  const domains = [...new Set(urls.map(getDomain).filter((domain): domain is string => Boolean(domain)))];
+  if (domains.length === 0) return;
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      const items = await chrome.storage.local.get(null);
-      for (const [key, value] of Object.entries(items)) {
-        if (!key.startsWith(FAVICON_CACHE_PREFIX)) continue;
-        const domain = key.slice(FAVICON_CACHE_PREFIX.length);
-        if (!domain || memoryCache.size >= MAX_MEMORY_ENTRIES) continue;
-        const entry = parseEntry(value);
-        if (entry) memoryCache.set(domain, entry);
-      }
-    } else {
-      const keys = Object.keys(localStorage).filter((k) => k.startsWith(FAVICON_CACHE_PREFIX));
-      for (const key of keys) {
-        if (memoryCache.size >= MAX_MEMORY_ENTRIES) break;
-        try {
-          const raw = localStorage.getItem(key);
-          if (!raw) continue;
-          let parsed: unknown = raw;
-          try {
-            parsed = JSON.parse(raw);
-          } catch {
-            // 可能是旧版纯 dataURL
-          }
-          const entry = parseEntry(parsed) || parseEntry(raw);
-          const domain = key.slice(FAVICON_CACHE_PREFIX.length);
-          if (entry && domain) memoryCache.set(domain, entry);
-        } catch {}
-      }
+    const entries = await readStoredFaviconEntries(domains);
+    for (const [domain, entry] of entries) {
+      if (entry) addToMemoryCache(domain, entry);
     }
   } catch {
     // 静默失败

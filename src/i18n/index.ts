@@ -24,6 +24,13 @@ export function isLocalePreference(value: unknown): value is LocalePreference {
   return value === 'system' || value === 'zh-CN' || value === 'en'
 }
 
+try {
+  const cached = localStorage.getItem(LOCALE_STORAGE_KEY)
+  if (isLocalePreference(cached)) preference.value = cached
+} catch {
+  // Private mode can reject localStorage; the async read below still applies.
+}
+
 export const locale = computed<LocaleId>(() =>
   resolveLocale(preference.value, typeof navigator === 'undefined' ? '' : navigator.language)
 )
@@ -51,7 +58,10 @@ export function initI18n(): Promise<void> {
   if (!ready) {
     ready = (async () => {
       const stored = await storage.get<string>(LOCALE_STORAGE_KEY)
-      if (isLocalePreference(stored)) preference.value = stored
+      if (isLocalePreference(stored)) {
+        preference.value = stored
+        try { localStorage.setItem(LOCALE_STORAGE_KEY, stored) } catch { /* ignore */ }
+      }
       applyDocumentLanguage()
       storage.onChange(LOCALE_STORAGE_KEY, (changes) => {
         const next = changes[LOCALE_STORAGE_KEY]?.newValue
@@ -66,6 +76,7 @@ export function initI18n(): Promise<void> {
 export async function setLocalePreference(next: LocalePreference) {
   preference.value = next
   applyDocumentLanguage()
+  try { localStorage.setItem(LOCALE_STORAGE_KEY, next) } catch { /* ignore */ }
   await storage.set(LOCALE_STORAGE_KEY, next)
 }
 

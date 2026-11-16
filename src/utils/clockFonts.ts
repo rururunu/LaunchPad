@@ -55,9 +55,7 @@ export function clockFontFamily(id: string): string {
   return `'${id.replace(/'/g, '')}', ${fallback}`
 }
 
-/** Faces already linked from index.html, so the new tab does not request them again. */
-const PRELOADED = new Set(['Inter', 'Plus Jakarta Sans', 'Outfit', 'Poppins', 'Nunito', 'Montserrat'])
-const loaded = new Set<string>(PRELOADED)
+const loaded = new Set<string>()
 
 function stylesheetHref(fonts: readonly ClockFontOption[]): string {
   const params = fonts
@@ -78,13 +76,21 @@ function appendStylesheet(fonts: readonly ClockFontOption[]) {
   document.head.appendChild(link)
 }
 
+function warmWhenIdle(id: string) {
+  const run = () => void warmClockFonts([id])
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 4000 })
+  else setTimeout(run, 1500)
+}
+
 export function ensureClockFont(id: string) {
-  if (id) void warmClockFonts([id])
-  if (!id || GENERIC_FAMILIES.has(id) || loaded.has(id)) return
-  const font = CLOCK_FONTS.find((item) => item.id === id)
-  if (font && !font.google) return
-  loaded.add(id)
-  appendStylesheet([font ?? { id, group: 'sans', google: id }])
+  if (!id || GENERIC_FAMILIES.has(id)) return
+  if (!loaded.has(id)) {
+    const font = CLOCK_FONTS.find((item) => item.id === id)
+    if (font && !font.google) return
+    loaded.add(id)
+    appendStylesheet([font ?? { id, group: 'sans', google: id }])
+  }
+  warmWhenIdle(id)
 }
 
 /** Load every downloadable face so the font menu can draw each name in its own type. */
